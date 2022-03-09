@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "st", about = "quick stat information")]
+#[structopt(name = "stat", about = "quick stat information")]
 struct Opt {
     #[structopt(short, long, default_value = "1")]
     precision: u32,

@@ -1,7 +1,7 @@
 
-# st
+# stat
 
-`st` is a small cli tool for calculating simple statistics from a vector. Additionall, the tool contains two ascii graph options to output a line and a histogram plots (thanks to https://github.com/orhanbalci/rasciigraph).
+`stat` is a small cli tool for calculating simple statistics from a vector. Additionall, the tool contains two ascii graph options to output a line and a histogram plots (thanks to https://github.com/orhanbalci/rasciigraph).
 
 ## installing
 
@@ -20,7 +20,7 @@ cargo install --path .
 # examples
 
 ```
-> cat iris.csv | awk -F',' '{print $1}' |st -H
+> cat iris.csv | awk -F',' '{print $1}' |stat -H
 n          min        max        mean       median     mode       sd         var
 150        4.3        7.9        5.8433332  5.8        5          0.8253013  0.68112224
 ```
@@ -28,7 +28,7 @@ n          min        max        mean       median     mode       sd         var
 or transpose the output
 
 ```
-> cat tests/iris.csv | awk -F',' '{print $1}' |st -Ht
+> cat tests/iris.csv | awk -F',' '{print $1}' |stat -Ht
 N       149
 min     4.3
 max     7.9
@@ -42,7 +42,7 @@ var     0.68112224
 quick histogram and line plots
 
 ```
-> cat tests/input_med.csv |st -Hh
+> cat tests/input_med.csv |stat -Hh
  819 ┼                                ╭──╮
  778 ┤                             ╭──╯  ╰╮
  737 ┤                            ╭╯      │
@@ -65,7 +65,7 @@ quick histogram and line plots
   43 ┤       ╭───╯                                         ╰────╮
    2 ┼───────╯                                                  ╰──────────
 
-> cat tests/input_med_sin.csv |st -Hl
+> cat tests/input_med_sin.csv |stat -Hl
   89.52 ┤   ╭╮
   80.21 ┤  ╭╯│            ╭──╮            ╭─╮            ╭─╮            ╭─╮
   70.90 ┤ ╭╯ ╰╮           │  │           ╭╯ │           ╭╯ │           ╭╯ ╰╮
