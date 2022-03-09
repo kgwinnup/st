@@ -46,14 +46,6 @@ fn median(input: &mut [f64]) -> f64 {
 }
 
 fn mode(input: &[f64], prec: u32) -> f64 {
-    if input.len() == 0 {
-        return 0.0;
-    }
-
-    if input.len() == 1 {
-        return input[0];
-    }
-
     let mut counts: HashMap<u32, u32> = HashMap::new();
 
     for val in input.iter() {
