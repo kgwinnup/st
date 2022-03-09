@@ -3,6 +3,31 @@
 
 `stat` is a small cli tool for calculating simple statistics from a vector. Additionall, the tool contains two ascii graph options to output a line and a histogram plots (thanks to https://github.com/orhanbalci/rasciigraph).
 
+```
+stat --help
+stat 0.1.0
+quick stat information
+
+USAGE:
+    stat [FLAGS] [OPTIONS] [input]
+
+FLAGS:
+        --help           Prints help information
+    -h, --histo
+    -l, --line
+    -q, --quintiles      5-quintile
+    -t, --transpose
+    -V, --version        Prints version information
+    -H, --with-header
+
+OPTIONS:
+    -p, --precision <precision>    if inputs are floats, for bucketing purposes they are converted to ints [default: 1]
+    -Q, --quintile <quintiles>     k-quintile, for some input k
+
+ARGS:
+    <input>
+```
+
 ## installing
 
 building locally requires the rust toolchain (https://rustup.rs/). 
