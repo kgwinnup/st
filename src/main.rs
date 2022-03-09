@@ -122,7 +122,7 @@ fn print_summary(input: &mut [f64], prec: u32) {
     );
     println!(
         "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
-        input.len() - 1,
+        input.len(),
         min as f32,
         max as f32,
         mean as f32,
@@ -140,7 +140,7 @@ fn print_summary_t(input: &mut [f64], prec: u32) {
     let min = input[0];
     let max = input[input.len() - 1];
 
-    println!("{:<8}{}", "N", input.len() - 1);
+    println!("{:<8}{}", "N", input.len());
     println!("{:<8}{}", "min", min as f32);
     println!("{:<8}{}", "max", max as f32);
     println!("{:<8}{}", "mean", mean as f32);
