@@ -8,8 +8,19 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stat", about = "quick stat information")]
 struct Opt {
-    #[structopt(short, long, default_value = "1")]
+    #[structopt(
+        short,
+        long,
+        default_value = "1",
+        help = "if inputs are floats, for bucketing purposes they are converted to ints"
+    )]
     precision: u32,
+
+    #[structopt(short = "q", long = "quintiles", help = "5-quintile")]
+    quintiles5: bool,
+
+    #[structopt(short = "Q", long = "quintile", help = "k-quintile, for some input k")]
+    quintiles: Option<u32>,
 
     #[structopt(short, long)]
     transpose: bool,
@@ -173,6 +184,32 @@ fn print_histo(input: &mut [f64], prec: u32) {
     println!("{}", plot);
 }
 
+fn print_quintiles(input: &mut [f64], k: u32) {
+    if input.len() < (k as usize) {
+        eprintln!(
+            "insufficient data for {} quintiles, data has only {} rows",
+            k,
+            input.len()
+        );
+        return;
+    }
+
+    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let mut ks = vec![];
+    let size = input.len() / (k as usize);
+
+    for i in 1..k {
+        ks.push(input[(i as usize) * size] as f32);
+    }
+
+    for i in 0..k - 1 {
+        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
+        let perc_format = format!("{}%", (perc * 100.0) as u32);
+        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
+    }
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -225,6 +262,15 @@ fn main() {
         print_histo(&mut data, opt.precision);
     } else if opt.transpose {
         print_summary_t(&mut data, opt.precision)
+    } else if opt.quintiles5 {
+        print_quintiles(&mut data, 5);
+    } else if let Some(k) = opt.quintiles {
+        if k < 2 || k > 1000 {
+            eprintln!("invalid k, must be in a \"reasonabl\" range, (2-1000)");
+            std::process::exit(1);
+        }
+
+        print_quintiles(&mut data, k);
     } else {
         print_summary(&mut data, opt.precision)
     }
