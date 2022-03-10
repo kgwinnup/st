@@ -114,3 +114,17 @@ quick histogram and line plots
  -96.65 ┤          ╰─╯            ╰─╯            ╰─╯            ╰─╯
 ```
 
+simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is user defined) flags.
+
+```
+> stat -H -Q 10 tests/input_med.csv
+10%      13.449118
+20%      15.716261
+30%      17.333954
+40%      18.702745
+50%      19.969307
+60%      21.180988
+70%      22.507452
+80%      24.09385
+90%      26.283041
+```
