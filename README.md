@@ -1,15 +1,15 @@
 
-# stat
+# st
 
-`stat` is a small cli tool for calculating simple statistics from a vector. Additionall, the tool contains two ascii graph options to output a line and a histogram plots (thanks to https://github.com/orhanbalci/rasciigraph).
+`st` is a small cli tool for calculating simple statistics from a vector. Additionall, the tool contains two ascii graph options to output a line and a histogram plots (thanks to https://github.com/orhanbalci/rasciigraph).
 
 ```
-stat --help
-stat 0.1.0
+st --help
+st 0.1.0
 quick stat information
 
 USAGE:
-    stat [FLAGS] [OPTIONS] [input]
+    st [FLAGS] [OPTIONS] [input]
 
 FLAGS:
         --help           Prints help information
@@ -45,7 +45,7 @@ cargo install --path .
 # examples
 
 ```
-> cat iris.csv | awk -F',' '{print $1}' |stat -H
+> cat iris.csv | awk -F',' '{print $1}' |st -H
 n          min        max        mean       median     mode       sd         var
 150        4.3        7.9        5.8433332  5.8        5          0.8253013  0.68112224
 ```
@@ -53,7 +53,7 @@ n          min        max        mean       median     mode       sd         var
 or transpose the output
 
 ```
-> cat tests/iris.csv | awk -F',' '{print $1}' |stat -Ht
+> cat tests/iris.csv | awk -F',' '{print $1}' |st -Ht
 N       149
 min     4.3
 max     7.9
@@ -67,7 +67,7 @@ var     0.68112224
 quick histogram and line plots
 
 ```
-> cat tests/input_med.csv |stat -Hh
+> cat tests/input_med.csv |st -Hh
  819 ┼                                ╭──╮
  778 ┤                             ╭──╯  ╰╮
  737 ┤                            ╭╯      │
@@ -90,7 +90,7 @@ quick histogram and line plots
   43 ┤       ╭───╯                                         ╰────╮
    2 ┼───────╯                                                  ╰──────────
 
-> cat tests/input_med_sin.csv |stat -Hl
+> cat tests/input_med_sin.csv |st -Hl
   89.52 ┤   ╭╮
   80.21 ┤  ╭╯│            ╭──╮            ╭─╮            ╭─╮            ╭─╮
   70.90 ┤ ╭╯ ╰╮           │  │           ╭╯ │           ╭╯ │           ╭╯ ╰╮
@@ -117,7 +117,7 @@ quick histogram and line plots
 simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is user defined) flags.
 
 ```
-> stat -H -Q 10 tests/input_med.csv
+> st -H -Q 10 tests/input_med.csv
 10%      13.449118
 20%      15.716261
 30%      17.333954
