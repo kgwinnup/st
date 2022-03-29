@@ -31,8 +31,11 @@ enum TrainOptions {
         #[structopt(short, long, help = "eta")]
         eta: Option<f32>,
 
-        #[structopt(short, long, help = "path to save model")]
-        output: String,
+        #[structopt(short = "m", long = "model", help = "path to save model")]
+        model: String,
+
+        #[structopt(short = "h", long = "with-header", help = "with header")]
+        with_header: bool,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -44,6 +47,9 @@ enum PredictOptions {
     Binary {
         #[structopt(short, long, help = "path to model")]
         model: String,
+
+        #[structopt(short = "h", long = "with-header", help = "with header")]
+        with_header: bool,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -68,6 +74,9 @@ enum Command {
             help = "if inputs are floats, for bucketing purposes they are converted to ints"
         )]
         precision: u32,
+
+        #[structopt(short, long)]
+        foo: Vec<u32>,
 
         #[structopt(short = "h", long = "with-header")]
         with_header: bool,
@@ -371,11 +380,18 @@ fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
     data
 }
 
-fn to_matrix_1y(raw_inputs: &str, ycol: usize, with_header: bool) -> DMatrix {
+fn to_matrix_1y(
+    raw_inputs: &str,
+    ycol: usize,
+    with_header: bool,
+    output_lines: bool,
+) -> (DMatrix, Vec<&str>) {
     let mut xdata = Vec::new();
     let mut ydata = Vec::new();
 
     let mut rows = 0;
+
+    let mut lines = vec![];
 
     for (index, line) in raw_inputs.split("\n").enumerate() {
         if index == 0 && with_header {
@@ -405,13 +421,17 @@ fn to_matrix_1y(raw_inputs: &str, ycol: usize, with_header: bool) -> DMatrix {
             }
         }
 
+        if output_lines {
+            lines.push(line);
+        }
+
         rows += 1;
     }
 
     match DMatrix::from_dense(&xdata, rows) {
         Ok(mut x) => {
             let _ = x.set_labels(&ydata);
-            x
+            (x, lines)
         }
         Err(e) => {
             eprintln!("{}", e);
@@ -461,9 +481,11 @@ fn main() {
         Command::Summary {
             transpose,
             precision,
+            foo,
             with_header,
             input,
         } => {
+            println!("{:?}", foo);
             let raw_inputs = get_input(input);
             let mut data = vectorize_column(&raw_inputs, with_header);
             if transpose {
@@ -506,11 +528,12 @@ fn main() {
             ycol,
             depth,
             eta,
-            output,
+            model: output,
+            with_header,
             input,
         })) => {
             let raw_inputs = get_input(input);
-            let training_set = to_matrix_1y(&raw_inputs, ycol, false);
+            let (training_set, _) = to_matrix_1y(&raw_inputs, ycol, with_header, false);
 
             let eta_val = eta.unwrap_or(0.3);
             let depth_val = depth.unwrap_or(6);
@@ -541,13 +564,20 @@ fn main() {
             let _ = bst.save(output).unwrap();
         }
 
-        Command::Xgboost(TreeOptions::Predict(PredictOptions::Binary { model, input })) => {
+        Command::Xgboost(TreeOptions::Predict(PredictOptions::Binary {
+            model,
+            with_header,
+            input,
+        })) => {
             let inputs = get_input(input);
-            let test_set = to_matrix_1y(&inputs, 1000000, false);
+            let (test_set, lines) = to_matrix_1y(&inputs, 1000000, with_header, true);
 
             let bst = Booster::load(model).unwrap();
+            let predict = bst.predict(&test_set).unwrap();
 
-            println!("{:?}", bst.predict(&test_set).unwrap());
+            for (index, line) in lines.iter().enumerate() {
+                println!("{},{}", predict[index], line);
+            }
         }
     }
 }
