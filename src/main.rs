@@ -1,41 +1,118 @@
 use itertools::Itertools;
+use rand::distributions::{Distribution, Uniform};
+use rand::seq::SliceRandom;
 use rasciigraph;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use xgboost::{parameters, Booster, DMatrix};
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "st", about = "quick stat information")]
+#[structopt(
+    name = "st",
+    about = "stat information and processing",
+    version = "0.1"
+)]
 struct Opt {
-    #[structopt(
-        short,
-        long,
-        default_value = "1",
-        help = "if inputs are floats, for bucketing purposes they are converted to ints"
-    )]
-    precision: u32,
+    #[structopt(subcommand)]
+    cmd: Command,
+}
 
-    #[structopt(short = "q", long = "quintiles", help = "5-quintile")]
-    quintiles5: bool,
+#[derive(StructOpt, Debug)]
+enum TrainOptions {
+    Binary {
+        #[structopt(short, long, help = "predictor column")]
+        ycol: usize,
 
-    #[structopt(short = "Q", long = "quintile", help = "k-quintile, for some input k")]
-    quintiles: Option<u32>,
+        #[structopt(short, long, help = "max depth")]
+        depth: Option<u32>,
 
-    #[structopt(short, long)]
-    transpose: bool,
+        #[structopt(short, long, help = "eta")]
+        eta: Option<f32>,
 
-    #[structopt(short = "l", long = "line")]
-    line: bool,
+        #[structopt(short, long, help = "path to save model")]
+        output: String,
 
-    #[structopt(short = "h", long = "histo")]
-    histo: bool,
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+}
 
-    #[structopt(short = "H", long = "with-header")]
-    with_header: bool,
+#[derive(StructOpt, Debug)]
+enum PredictOptions {
+    Binary {
+        #[structopt(short, long, help = "path to model")]
+        model: String,
 
-    #[structopt(parse(from_os_str))]
-    input: Option<PathBuf>,
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+}
+
+#[derive(StructOpt, Debug)]
+enum TreeOptions {
+    Train(TrainOptions),
+    Predict(PredictOptions),
+}
+
+#[derive(StructOpt, Debug)]
+enum Command {
+    Summary {
+        #[structopt(short)]
+        transpose: bool,
+
+        #[structopt(
+            long,
+            default_value = "1",
+            help = "if inputs are floats, for bucketing purposes they are converted to ints"
+        )]
+        precision: u32,
+
+        #[structopt(short = "h", long = "with-header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    Quintiles {
+        #[structopt(short, help = "k-quintile, for some input k", default_value = "5")]
+        quintiles: u32,
+
+        #[structopt(short = "h", long = "with-header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    Graph {
+        #[structopt(short)]
+        typ: String,
+
+        #[structopt(short = "h", long = "with-header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    Sample {
+        #[structopt(short)]
+        size: u32,
+
+        #[structopt(short = "r", help = "sample with replacement")]
+        replace: bool,
+
+        #[structopt(short = "h", long = "with-header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    Xgboost(TreeOptions),
 }
 
 fn median(input: &mut [f64]) -> f64 {
@@ -210,10 +287,141 @@ fn print_quintiles(input: &mut [f64], k: u32) {
     }
 }
 
-fn main() {
-    let opt = Opt::from_args();
+fn handle_sampling(raw_inputs: &str, with_header: bool, size: u32, with_replacement: bool) {
+    let mut lines = vec![];
+    let mut header = String::new();
 
-    let raw_inputs = if let Some(path) = opt.input {
+    for (index, line) in raw_inputs.split("\n").enumerate() {
+        if index == 0 && with_header {
+            header = line.to_string();
+            continue;
+        }
+
+        if line == "\n" || line == "" {
+            continue;
+        }
+
+        lines.push(line);
+    }
+
+    if !header.is_empty() {
+        println!("{}", header);
+    }
+
+    if with_replacement {
+        if size <= 0 {
+            eprintln!("invalid sample with replacement size, must be a positive number");
+            std::process::exit(1);
+        }
+
+        let mut rng = rand::thread_rng();
+        let roll = Uniform::from(0..lines.len());
+
+        let mut count = 0;
+
+        loop {
+            if count > size {
+                break;
+            }
+
+            let index = roll.sample(&mut rng);
+            println!("{}", lines[index as usize]);
+            count += 1;
+        }
+    } else {
+        if size <= 0 || size > lines.len() as u32 {
+            eprintln!("invalid sampling without replacement. n must be within the magnitude of the input data set");
+            std::process::exit(1);
+        }
+
+        let mut rng = rand::thread_rng();
+        lines.shuffle(&mut rng);
+
+        for (index, line) in lines.iter().enumerate() {
+            if index as u32 > size - 1 {
+                break;
+            }
+            println!("{}", line);
+        }
+    }
+}
+
+fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
+    let mut data = vec![];
+
+    for (index, line) in raw_inputs.split("\n").enumerate() {
+        if index == 0 && with_header {
+            continue;
+        }
+
+        if line == "\n" || line == "" {
+            continue;
+        }
+
+        let temp: Result<f64, _> = line.trim().parse();
+        match temp {
+            Ok(f) => data.push(f),
+            Err(_) => {
+                eprintln!("error converting to float: {} at line {}", line, index);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    data
+}
+
+fn to_matrix_1y(raw_inputs: &str, ycol: usize, with_header: bool) -> DMatrix {
+    let mut xdata = Vec::new();
+    let mut ydata = Vec::new();
+
+    let mut rows = 0;
+
+    for (index, line) in raw_inputs.split("\n").enumerate() {
+        if index == 0 && with_header {
+            continue;
+        }
+
+        if line == "\n" || line == "" {
+            continue;
+        }
+
+        let split = line.split(",");
+
+        for (index, val) in split.enumerate() {
+            let temp: Result<f32, _> = val.trim().parse();
+            match temp {
+                Ok(f) => {
+                    if index == ycol {
+                        ydata.push(f)
+                    } else {
+                        xdata.push(f)
+                    }
+                }
+                Err(_) => {
+                    eprintln!("error converting to float: {} at line {}", line, index);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        rows += 1;
+    }
+
+    match DMatrix::from_dense(&xdata, rows) {
+        Ok(mut x) => {
+            let _ = x.set_labels(&ydata);
+            x
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn get_input(input: Option<PathBuf>) -> String {
+    if let Some(path) = input {
         match std::fs::read_to_string(path) {
             Ok(contents) => contents,
 
@@ -233,45 +441,113 @@ fn main() {
         }
 
         input
-    };
+    }
+}
 
-    let mut data = vec![];
+fn main() {
+    let opt = Opt::from_args();
 
-    for (index, line) in raw_inputs.split("\n").enumerate() {
-        if index == 0 && opt.with_header {
-            continue;
+    match opt.cmd {
+        Command::Sample {
+            size,
+            replace,
+            with_header,
+            input,
+        } => {
+            let raw_inputs = get_input(input);
+            handle_sampling(&raw_inputs, with_header, size, replace);
         }
 
-        if line == "\n" || line == "" {
-            continue;
+        Command::Summary {
+            transpose,
+            precision,
+            with_header,
+            input,
+        } => {
+            let raw_inputs = get_input(input);
+            let mut data = vectorize_column(&raw_inputs, with_header);
+            if transpose {
+                print_summary_t(&mut data, precision)
+            } else {
+                print_summary(&mut data, precision)
+            }
         }
 
-        let temp: Result<f64, _> = line.trim().parse();
-        match temp {
-            Ok(f) => data.push(f),
-            Err(_) => {
-                eprintln!("error converting to float: {} at line {}", line, index);
+        Command::Quintiles {
+            quintiles,
+            with_header,
+            input,
+        } => {
+            let raw_inputs = get_input(input);
+            let mut data = vectorize_column(&raw_inputs, with_header);
+            print_quintiles(&mut data, quintiles);
+        }
+
+        Command::Graph {
+            typ,
+            with_header,
+            input,
+        } => {
+            let raw_inputs = get_input(input);
+            let mut data = vectorize_column(&raw_inputs, with_header);
+            let name = typ.to_lowercase();
+
+            if name.starts_with("line") {
+                print_line(&data);
+            } else if name.starts_with("histo") {
+                print_histo(&mut data, 1);
+            } else {
+                eprintln!("invalid graph type");
                 std::process::exit(1);
             }
         }
-    }
 
-    if opt.line {
-        print_line(&data);
-    } else if opt.histo {
-        print_histo(&mut data, opt.precision);
-    } else if opt.transpose {
-        print_summary_t(&mut data, opt.precision)
-    } else if opt.quintiles5 {
-        print_quintiles(&mut data, 5);
-    } else if let Some(k) = opt.quintiles {
-        if k < 2 || k > 1000 {
-            eprintln!("invalid k, must be in a \"reasonabl\" range, (2-1000)");
-            std::process::exit(1);
+        Command::Xgboost(TreeOptions::Train(TrainOptions::Binary {
+            ycol,
+            depth,
+            eta,
+            output,
+            input,
+        })) => {
+            let raw_inputs = get_input(input);
+            let training_set = to_matrix_1y(&raw_inputs, ycol, false);
+
+            let eta_val = eta.unwrap_or(0.3);
+            let depth_val = depth.unwrap_or(6);
+
+            let tree_params = parameters::tree::TreeBoosterParametersBuilder::default()
+                .max_depth(depth_val)
+                .eta(eta_val)
+                .build()
+                .unwrap();
+
+            let booster_params = parameters::BoosterParametersBuilder::default()
+                .booster_type(parameters::BoosterType::Tree(tree_params))
+                .verbose(false)
+                .build()
+                .unwrap();
+
+            let training_params = parameters::TrainingParametersBuilder::default()
+                .dtrain(&training_set)
+                .booster_params(booster_params)
+                .build()
+                .unwrap();
+
+            let bst = Booster::train(&training_params).unwrap();
+            for (k, v) in bst.evaluate(&training_set).unwrap() {
+                eprintln!("{} = {}", k, v);
+            }
+
+            let _ = bst.save(output).unwrap();
         }
 
-        print_quintiles(&mut data, k);
-    } else {
-        print_summary(&mut data, opt.precision)
+        Command::Xgboost(TreeOptions::Predict(PredictOptions::Binary { model, input })) => {
+            let inputs = get_input(input);
+            let test_set = to_matrix_1y(&inputs, 1000000, false);
+
+            let bst = Booster::load(model).unwrap();
+
+            println!("{:?}", bst.predict(&test_set).unwrap());
+        }
     }
 }
