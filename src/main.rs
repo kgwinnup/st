@@ -148,6 +148,13 @@ enum Command {
     Xgboost(TreeOptions),
 
     Eval {
+        #[structopt(
+            short,
+            long,
+            help = "output confustion matrix for some threshold [0,1]"
+        )]
+        confusion_matrix: Option<f32>,
+
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
@@ -533,58 +540,93 @@ fn main() {
             }
         }
 
-        Command::Eval { input } => {
+        Command::Eval {
+            input,
+            confusion_matrix,
+        } => {
             let raw_inputs = get_input(input);
             let tuples = parse_tuple(&raw_inputs);
 
-            println!(
-                "{:8} {:8} {:8} {:8} {:8}",
-                "t", "prec", "f1", "recall", "fpr"
-            );
-
-            let mut threshold: f32 = 0.0;
-            loop {
-                if threshold > 1.0 {
-                    break;
-                }
-
+            if let Some(t) = confusion_matrix {
                 let mut ttp: f32 = 0.0;
                 let mut tfp: f32 = 0.0;
                 let mut tfn: f32 = 0.0;
                 let mut ttn: f32 = 0.0;
 
                 for (p, a) in tuples.iter() {
-                    if *p >= threshold && *a == 1.0 {
+                    if *p >= t && *a == 1.0 {
                         ttp += 1.0;
                         continue;
                     }
 
-                    if *p >= threshold && *a == 0.0 {
+                    if *p >= t && *a == 0.0 {
                         tfp += 1.0;
                         continue;
                     }
 
-                    if *p < threshold && *a == 1.0 {
+                    if *p < t && *a == 1.0 {
                         tfn += 1.0;
                         continue;
                     }
 
-                    if *p < threshold && *a == 0.0 {
+                    if *p < t && *a == 0.0 {
                         ttn += 1.0;
                         continue;
                     }
                 }
 
-                let precision = ttp / (ttp + tfp);
-                let recall = ttp / (ttp + tfn);
-                let f1 = 2.0 * (recall * precision) / (recall + precision);
-                let fpr = tfp / (tfp + ttn);
-
+                println!("{:4.2} {:4.2}", ttp, tfp);
+                println!("{:4.2} {:4.2}", tfn, ttn);
+            } else {
                 println!(
-                    "{:.2} {:8.4} {:8.4} {:8.4} {:8.4}",
-                    threshold, precision, f1, recall, fpr
+                    "{:8} {:8} {:8} {:8} {:8}",
+                    "t", "prec", "f1", "recall", "fpr"
                 );
-                threshold += 0.05;
+
+                let mut threshold: f32 = 0.0;
+                loop {
+                    if threshold > 1.0 {
+                        break;
+                    }
+
+                    let mut ttp: f32 = 0.0;
+                    let mut tfp: f32 = 0.0;
+                    let mut tfn: f32 = 0.0;
+                    let mut ttn: f32 = 0.0;
+
+                    for (p, a) in tuples.iter() {
+                        if *p >= threshold && *a == 1.0 {
+                            ttp += 1.0;
+                            continue;
+                        }
+
+                        if *p >= threshold && *a == 0.0 {
+                            tfp += 1.0;
+                            continue;
+                        }
+
+                        if *p < threshold && *a == 1.0 {
+                            tfn += 1.0;
+                            continue;
+                        }
+
+                        if *p < threshold && *a == 0.0 {
+                            ttn += 1.0;
+                            continue;
+                        }
+                    }
+
+                    let precision = ttp / (ttp + tfp);
+                    let recall = ttp / (ttp + tfn);
+                    let f1 = 2.0 * (recall * precision) / (recall + precision);
+                    let fpr = tfp / (tfp + ttn);
+
+                    println!(
+                        "{:.2} {:8.4} {:8.4} {:8.4} {:8.4}",
+                        threshold, precision, f1, recall, fpr
+                    );
+                    threshold += 0.05;
+                }
             }
         }
 
