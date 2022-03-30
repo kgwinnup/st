@@ -1,21 +1,16 @@
 [package]
-name = "st"
+name = "st_core"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-structopt = "0.3.26"
 rasciigraph = "0.1.1"
 itertools = "0.8.2"
 rand = "0.8.5"
-xgboost = "0.1.4"
-serde_json = "1.0"
-polars-io = "0.20.0"
-polars-core = "0.20.0"
 csv = "1.1.6"
-st_core = { version = "^0", path = "crates/st_core" }
+polars-core = "0.20.0"
+polars-io = { version = "0.20.0", features = ["csv-file"] }
 
-[workspace]
-members = ["crates/*"]
+

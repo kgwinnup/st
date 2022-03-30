@@ -1,7 +1,4 @@
-use itertools::Itertools;
-use rand::distributions::{Distribution, Uniform};
-use rand::seq::SliceRandom;
-use rasciigraph;
+use st_core;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -20,8 +17,8 @@ struct Opt {
 }
 
 #[derive(StructOpt, Debug)]
-enum TrainOptions {
-    Binary {
+enum TreeOptions {
+    Train {
         #[structopt(short, long, help = "predictor column")]
         ycol: usize,
 
@@ -31,8 +28,23 @@ enum TrainOptions {
         #[structopt(short, long, help = "eta")]
         eta: Option<f32>,
 
-        #[structopt(short = "m", long = "model", help = "path to save model")]
-        model: String,
+        #[structopt(short = "m", long, help = "path to save model")]
+        model_out: String,
+
+        #[structopt(
+            short,
+            long,
+            help = "objective function: binary:logistic, multi:softmax, multi:softprob"
+        )]
+        objective: String,
+
+        #[structopt(
+            short,
+            long,
+            help = "number of classes to predict",
+            default_value = "1"
+        )]
+        nclasses: u32,
 
         #[structopt(short = "h", long = "with-header", help = "with header")]
         with_header: bool,
@@ -40,13 +52,10 @@ enum TrainOptions {
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
-}
 
-#[derive(StructOpt, Debug)]
-enum PredictOptions {
-    Binary {
+    Predict {
         #[structopt(short, long, help = "path to model")]
-        model: String,
+        model_in: String,
 
         #[structopt(short = "h", long = "with-header", help = "with header")]
         with_header: bool,
@@ -54,16 +63,18 @@ enum PredictOptions {
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
-}
-
-#[derive(StructOpt, Debug)]
-enum TreeOptions {
-    Train(TrainOptions),
-    Predict(PredictOptions),
 
     Importance {
         #[structopt(short = "d", help = "dump model in text format")]
         dump_model: bool,
+
+        #[structopt(
+            short,
+            long = "type",
+            help = "importance type: gain, cover, freq",
+            default_value = "gain"
+        )]
+        typ: String,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -72,6 +83,7 @@ enum TreeOptions {
 
 #[derive(StructOpt, Debug)]
 enum Command {
+    #[structopt(about = "summary statistics from a single vector")]
     Summary {
         #[structopt(short)]
         transpose: bool,
@@ -93,6 +105,7 @@ enum Command {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "k-quintile from a single vector (default k = 5)")]
     Quintiles {
         #[structopt(short, help = "k-quintile, for some input k", default_value = "5")]
         quintiles: u32,
@@ -104,6 +117,7 @@ enum Command {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "very simple cli graphing")]
     Graph {
         #[structopt(short)]
         typ: String,
@@ -115,6 +129,7 @@ enum Command {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "sample a vector, with or without replacement")]
     Sample {
         #[structopt(short)]
         size: u32,
@@ -129,238 +144,8 @@ enum Command {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "train, predict, and understand xgboost models")]
     Xgboost(TreeOptions),
-}
-
-fn median(input: &mut [f64]) -> f64 {
-    if input.len() == 0 {
-        return 0.0;
-    }
-
-    if input.len() == 1 {
-        return input[0];
-    }
-
-    if input.len() == 2 {
-        return input[0] + input[1] / 2.0;
-    }
-
-    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mid = input.len() / 2;
-    input[mid]
-}
-
-fn mode(input: &[f64], prec: u32) -> f64 {
-    let mut counts: HashMap<u32, u32> = HashMap::new();
-
-    for val in input.iter() {
-        let temp = val * (prec as f64);
-        *counts.entry(temp as u32).or_insert(1) += 1;
-    }
-
-    let out = counts
-        .into_iter()
-        .max_by_key(|&(_, count)| count)
-        .map(|(val, _)| val)
-        .expect("cannot compute mode of zero numbers");
-
-    out as f64 / prec as f64
-}
-
-fn mean(input: &[f64]) -> f64 {
-    if input.len() == 0 {
-        return 0.0;
-    }
-
-    if input.len() == 1 {
-        return input[0];
-    }
-
-    input.iter().sum::<f64>() as f64 / input.len() as f64
-}
-
-fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
-    if input.len() == 0 {
-        return (0.0, 0.0, 0.0);
-    }
-
-    if input.len() == 1 {
-        return (0.0, 0.0, 0.0);
-    }
-
-    let u = mean(input);
-
-    let mut sum = 0.0;
-
-    for i in input.iter() {
-        sum += (i - u).powf(2.0);
-    }
-
-    (
-        (sum / input.len() as f64).sqrt(),
-        (sum / input.len() as f64),
-        u,
-    )
-}
-
-fn print_summary(input: &mut [f64], prec: u32) {
-    let (sd, var, mean) = stdev_var_mean(input);
-    let m = mode(input, prec);
-    let med = median(input);
-    let min = input[0];
-    let max = input[input.len() - 1];
-
-    println!(
-        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
-        "n", "min", "max", "mean", "median", "mode", "sd", "var"
-    );
-    println!(
-        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
-        input.len(),
-        min as f32,
-        max as f32,
-        mean as f32,
-        med as f32,
-        m as f32,
-        sd as f32,
-        var as f32
-    );
-}
-
-fn print_summary_t(input: &mut [f64], prec: u32) {
-    let (sd, var, mean) = stdev_var_mean(input);
-    let m = mode(input, prec);
-    let med = median(input);
-    let min = input[0];
-    let max = input[input.len() - 1];
-
-    println!("{:<8}{}", "N", input.len());
-    println!("{:<8}{}", "min", min as f32);
-    println!("{:<8}{}", "max", max as f32);
-    println!("{:<8}{}", "mean", mean as f32);
-    println!("{:<8}{}", "med", med as f32);
-    println!("{:<8}{}", "mode", m as f32);
-    println!("{:<8}{}", "stdev", sd as f32);
-    println!("{:<8}{}", "var", var as f32);
-}
-
-fn print_line(input: &[f64]) {
-    let config = rasciigraph::Config::default()
-        .with_height(20)
-        .with_width(70)
-        .with_offset(0);
-    let plot = rasciigraph::plot(input.to_vec(), config);
-    println!("{}", plot);
-}
-
-fn print_histo(input: &mut [f64], prec: u32) {
-    let mut histo: HashMap<u32, u32> = HashMap::new();
-
-    for val in input.iter() {
-        let temp = val * (prec as f64);
-        *histo.entry(temp as u32).or_insert(1) += 1;
-    }
-
-    let mut new_vec = vec![];
-
-    let keys = histo.keys().sorted();
-    for k in keys {
-        if let Some(v) = histo.get(k) {
-            new_vec.push(*v as f64);
-        }
-    }
-
-    let config = rasciigraph::Config::default()
-        .with_height(20)
-        .with_width(70)
-        .with_offset(0);
-    let plot = rasciigraph::plot(new_vec, config);
-    println!("{}", plot);
-}
-
-fn print_quintiles(input: &mut [f64], k: u32) {
-    if input.len() < (k as usize) {
-        eprintln!(
-            "insufficient data for {} quintiles, data has only {} rows",
-            k,
-            input.len()
-        );
-        return;
-    }
-
-    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    let mut ks = vec![];
-    let size = input.len() / (k as usize);
-
-    for i in 1..k {
-        ks.push(input[(i as usize) * size] as f32);
-    }
-
-    for i in 0..k - 1 {
-        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
-        let perc_format = format!("{}%", (perc * 100.0) as u32);
-        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
-    }
-}
-
-fn handle_sampling(raw_inputs: &str, with_header: bool, size: u32, with_replacement: bool) {
-    let mut lines = vec![];
-    let mut header = String::new();
-
-    for (index, line) in raw_inputs.split("\n").enumerate() {
-        if index == 0 && with_header {
-            header = line.to_string();
-            continue;
-        }
-
-        if line == "\n" || line == "" {
-            continue;
-        }
-
-        lines.push(line);
-    }
-
-    if !header.is_empty() {
-        println!("{}", header);
-    }
-
-    if with_replacement {
-        if size <= 0 {
-            eprintln!("invalid sample with replacement size, must be a positive number");
-            std::process::exit(1);
-        }
-
-        let mut rng = rand::thread_rng();
-        let roll = Uniform::from(0..lines.len());
-
-        let mut count = 0;
-
-        loop {
-            if count > size {
-                break;
-            }
-
-            let index = roll.sample(&mut rng);
-            println!("{}", lines[index as usize]);
-            count += 1;
-        }
-    } else {
-        if size <= 0 || size > lines.len() as u32 {
-            eprintln!("invalid sampling without replacement. n must be within the magnitude of the input data set");
-            std::process::exit(1);
-        }
-
-        let mut rng = rand::thread_rng();
-        lines.shuffle(&mut rng);
-
-        for (index, line) in lines.iter().enumerate() {
-            if index as u32 > size - 1 {
-                break;
-            }
-            println!("{}", line);
-        }
-    }
 }
 
 fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
@@ -388,7 +173,7 @@ fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
     data
 }
 
-fn to_matrix_1y(
+fn to_matrix(
     raw_inputs: &str,
     ycol: usize,
     with_header: bool,
@@ -472,6 +257,179 @@ fn get_input(input: Option<PathBuf>) -> String {
     }
 }
 
+#[derive(Default, Debug)]
+struct XgboostNode {
+    name: String,
+    gain: f32,
+    cover: f32,
+}
+
+fn parse_node(node_str: &str) -> XgboostNode {
+    let mut name = String::new();
+
+    let mut in_name = false;
+    let mut in_map = false;
+    let mut in_key_name = false;
+    let mut key_name = String::new();
+    let mut val = String::new();
+
+    let mut node = XgboostNode::default();
+
+    for c in node_str.chars() {
+        match c {
+            ' ' => {
+                in_map = true;
+                in_key_name = true;
+                node.name = name.to_string();
+            }
+
+            '[' => {
+                in_name = true;
+            }
+
+            '<' => {
+                in_name = false;
+            }
+
+            '=' => {
+                in_key_name = false;
+            }
+
+            ',' => {
+                in_key_name = true;
+
+                let temp: Result<f32, _> = val.parse();
+                match temp {
+                    Ok(f) => {
+                        if key_name == "gain" {
+                            node.gain = f;
+                        } else if key_name == "cover" {
+                            node.cover = f;
+                        }
+
+                        val = String::new();
+                        key_name = String::new();
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+            c => {
+                if in_name {
+                    name.push(c);
+                } else if in_map && in_key_name {
+                    key_name.push(c);
+                } else if in_map && !in_key_name {
+                    val.push(c);
+                }
+            }
+        }
+    }
+
+    let temp: Result<f32, _> = val.parse();
+    match temp {
+        Ok(f) => {
+            if key_name == "gain" {
+                node.gain = f;
+            } else if key_name == "cover" {
+                node.cover = f;
+            }
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    }
+
+    node
+}
+
+fn importance(model_dump: String, typ: &str) {
+    let mut gain_map = HashMap::new();
+    let mut cover_map = HashMap::new();
+    let mut freq_map = HashMap::new();
+
+    let mut total_gain = 0.0;
+    let mut total_cover = 0.0;
+    let mut total_freq = 0;
+
+    for line in model_dump.split("\n").into_iter() {
+        if line.contains("leaf") {
+            continue;
+        }
+
+        let space_split = line.split(" ").collect::<Vec<&str>>();
+        if space_split.len() != 2 {
+            continue;
+        }
+
+        let node = parse_node(&line);
+
+        total_freq += 1;
+
+        if let Some(val) = freq_map.get_mut(&node.name) {
+            *val += 1;
+        } else {
+            freq_map.insert(node.name.to_string(), 1);
+        }
+
+        if let Some(val) = gain_map.get_mut(&node.name) {
+            *val += node.gain;
+            total_gain += node.gain;
+        } else {
+            gain_map.insert(node.name.to_string(), node.gain);
+            total_gain += node.gain;
+        }
+
+        if let Some(val) = cover_map.get_mut(&node.name) {
+            *val += node.cover;
+            total_cover += node.cover;
+        } else {
+            cover_map.insert(node.name.to_string(), node.cover);
+            total_cover += node.cover;
+        }
+    }
+
+    if typ == "gain" {
+        let mut list = vec![];
+        for (k, v) in gain_map {
+            list.push((k, v / total_gain));
+        }
+        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
+
+        for (name, val) in list {
+            println!("{} = {}", name, val);
+        }
+    }
+
+    if typ == "cover" {
+        let mut list = vec![];
+        for (k, v) in cover_map {
+            list.push((k, v / total_cover));
+        }
+        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
+
+        for (name, val) in list {
+            println!("{} = {}", name, val);
+        }
+    }
+
+    if typ == "freq" {
+        let mut list = vec![];
+        for (k, v) in freq_map {
+            list.push((k, v / total_freq));
+        }
+        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
+
+        for (name, val) in list {
+            println!("{} = {}", name, val);
+        }
+    }
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -483,7 +441,7 @@ fn main() {
             input,
         } => {
             let raw_inputs = get_input(input);
-            handle_sampling(&raw_inputs, with_header, size, replace);
+            st_core::sample(&raw_inputs, with_header, size, replace);
         }
 
         Command::Summary {
@@ -497,9 +455,9 @@ fn main() {
             let raw_inputs = get_input(input);
             let mut data = vectorize_column(&raw_inputs, with_header);
             if transpose {
-                print_summary_t(&mut data, precision)
+                st_core::print_summary_t(&mut data, precision)
             } else {
-                print_summary(&mut data, precision)
+                st_core::print_summary(&mut data, precision)
             }
         }
 
@@ -510,7 +468,7 @@ fn main() {
         } => {
             let raw_inputs = get_input(input);
             let mut data = vectorize_column(&raw_inputs, with_header);
-            print_quintiles(&mut data, quintiles);
+            st_core::print_quintiles(&mut data, quintiles);
         }
 
         Command::Graph {
@@ -523,25 +481,42 @@ fn main() {
             let name = typ.to_lowercase();
 
             if name.starts_with("line") {
-                print_line(&data);
+                st_core::print_line(&data);
             } else if name.starts_with("histo") {
-                print_histo(&mut data, 1);
+                st_core::print_histo(&mut data, 1);
             } else {
                 eprintln!("invalid graph type");
                 std::process::exit(1);
             }
         }
 
-        Command::Xgboost(TreeOptions::Train(TrainOptions::Binary {
+        Command::Xgboost(TreeOptions::Train {
             ycol,
             depth,
             eta,
-            model: output,
+            model_out: output,
+            objective,
+            nclasses,
             with_header,
             input,
-        })) => {
+        }) => {
             let raw_inputs = get_input(input);
-            let (training_set, _) = to_matrix_1y(&raw_inputs, ycol, with_header, false);
+            let (training_set, _) = to_matrix(&raw_inputs, ycol, with_header, false);
+
+            let objective_fn = match objective.as_str() {
+                "binary:logistic" => parameters::learning::Objective::BinaryLogistic,
+                "multi:softmax" => parameters::learning::Objective::MultiSoftmax(nclasses),
+                "multi:softprob" => parameters::learning::Objective::MultiSoftprob(nclasses),
+                _ => {
+                    eprintln!("invalid objective function");
+                    std::process::exit(1);
+                }
+            };
+
+            let learning_params = parameters::learning::LearningTaskParametersBuilder::default()
+                .objective(objective_fn)
+                .build()
+                .unwrap();
 
             let eta_val = eta.unwrap_or(0.3);
             let depth_val = depth.unwrap_or(6);
@@ -554,6 +529,7 @@ fn main() {
 
             let booster_params = parameters::BoosterParametersBuilder::default()
                 .booster_type(parameters::BoosterType::Tree(tree_params))
+                .learning_params(learning_params)
                 .verbose(false)
                 .build()
                 .unwrap();
@@ -569,18 +545,16 @@ fn main() {
                 eprintln!("{} = {}", k, v);
             }
 
-            println!("{}", bst.dump_model(true, None).unwrap());
-
             let _ = bst.save(output).unwrap();
         }
 
-        Command::Xgboost(TreeOptions::Predict(PredictOptions::Binary {
-            model,
+        Command::Xgboost(TreeOptions::Predict {
+            model_in: model,
             with_header,
             input,
-        })) => {
+        }) => {
             let inputs = get_input(input);
-            let (test_set, lines) = to_matrix_1y(&inputs, 1000000, with_header, true);
+            let (test_set, lines) = to_matrix(&inputs, 1000000, with_header, true);
 
             let bst = Booster::load(model).unwrap();
             let predict = bst.predict(&test_set).unwrap();
@@ -590,7 +564,11 @@ fn main() {
             }
         }
 
-        Command::Xgboost(TreeOptions::Importance { input, dump_model }) => {
+        Command::Xgboost(TreeOptions::Importance {
+            input,
+            typ,
+            dump_model,
+        }) => {
             let bytes = if let Some(path) = input {
                 match std::fs::read(path) {
                     Ok(contents) => contents,
@@ -610,6 +588,10 @@ fn main() {
             if dump_model {
                 let bst = Booster::load_buffer(&bytes).unwrap();
                 println!("{}", bst.dump_model(true, None).unwrap());
+            } else {
+                let bst = Booster::load_buffer(&bytes).unwrap();
+                let model = bst.dump_model(true, None).unwrap();
+                importance(model, &typ);
             }
         }
     }

@@ -24,12 +24,12 @@ FLAGS:
     -V, --version    Prints version information
 
 SUBCOMMANDS:
-    graph
+    graph        very simple cli graphing
     help         Prints this message or the help of the given subcommand(s)
-    quintiles
-    sample
-    summary
-    xgboost
+    quintiles    k-quintile from a single vector (default k = 5)
+    sample       sample a vector, with or without replacement
+    summary      summary statistics from a single vector
+    xgboost      train, predict, and understand xgboost models
 ```
 
 ## Installing
@@ -140,13 +140,10 @@ XGBoost is also built in to `st`. A simple workflow with the iris dataset is
 below.
 
 We're going to perform a binary prediction, however, there are three classes in
-this set. Since this is binary, we need to convert the three classes into two.
-We could label two of the classes with the same label, or we can just remove
-one of the classes. For this example, I will remove a class.
+this set. So we need to ensure we're using a multiclass predictive objective.
 
 ```bash
-> cat tests/iris.csv |tr -d '"' | awk -F',' '{print $5}' |sort |uniq
-Species
+> cat tests/iris.csv |sed -e '1,1d' |tr -d '"' | awk -F',' '{print $5}' |sort |uniq
 setosa
 versicolor
 virginica
@@ -155,11 +152,12 @@ virginica
 This command does a number of things. The first `sed` command strips off the
 header line as that gets in the way of the final random shuffle that happens.
 The next few `sed` commands changes the string labels to integers that XGBoost
-can understand. We are left with two categories encoded with 0 and 1. The final
-command shuffles the entire dataset and prepares it for the train/test split.
+can understand. We are left with two categories encoded with 0, 1, and 2. The
+final command shuffles the entire dataset and prepares it for the train/test
+split.
 
 ```bash
-cat tests/iris.csv |sed -e '1,1d' |tr -d '"' |grep -v virginica | sed -e 's/setosa/0/g' | sed -e 's/versicolor/1/g' | sed -e 's/virginica/2/g' | sort -R > tests/iris_normalized.csv
+cat tests/iris.csv |sed -e '1,1d' |tr -d '"' | sed -e 's/setosa/0/g' | sed -e 's/versicolor/1/g' | sed -e 's/virginica/2/g' | sort -R > tests/iris_normalized.csv
 
 > head tests/iris_normalized.csv
 5.1,3.5,1.4,0.2,0
@@ -183,15 +181,35 @@ predictor value. After the model is trained and saved, we can use it on our
 test set.
 
 ```bash
-> cat tests/iris_train.csv | ./target/debug/st xgboost train binary -y 4 -m out.model
-rmse = 0.015777
-
-
-> cat tests/iris_test.csv | ./target/debug/st xgboost predict binary -m out.model
-0.015754879,4.6,3.2,1.4,0.2,0
-0.9842001,6.3,2.3,4.4,1.3,1
-0.015754879,4.6,3.4,1.4,0.3,0
-0.9842001,5.8,2.6,4,1.2,1
-0.015754879,5.1,3.7,1.5,0.4,0
+> cat tests/iris_train.csv | ./target/debug/st xgboost train -n 3 -y 4 -m out.model -o multi:softmax
+merror = 0.008
 ```
 
+Now we can use the model to predict some values. Get the test set and use the
+predict subcommand. The predicted value for the test set is added as the first
+column of the output.
+
+```bash
+> cat tests/iris_test.csv | ./target/debug/st xgboost predict -m out.model
+1,7,3.2,4.7,1.4,1
+1,6.6,3,4.4,1.4,1
+1,5,2.3,3.3,1,1
+1,5.6,3,4.1,1.3,1
+2,6.7,3.3,5.7,2.1,2
+0,4.3,3,1.1,0.1,0
+0,5.4,3.9,1.3,0.4,0
+```
+
+Tree based models are great for understanding the results. You can use the
+"importance" subcommand to try and understand the model and how specific
+features impact the model. All features are labeled "fx" where "x" is the
+column number.
+
+
+```bash
+> st xgboost importance -t gain out.model
+f2 = 0.49456635
+f3 = 0.4888009
+f1 = 0.011651897
+f0 = 0.004981032
+```
