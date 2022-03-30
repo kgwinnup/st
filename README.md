@@ -32,7 +32,7 @@ SUBCOMMANDS:
     xgboost
 ```
 
-## installing
+## Installing
 
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
@@ -46,7 +46,7 @@ Or install it to the cargo bin directory (make sure it is in your $PATH).
 cargo install --path .
 ```
 
-# examples
+# Examples
 
 ```
 cat tests/iris.csv | awk -F',' '{print $1}' |st summary -h
@@ -133,6 +133,8 @@ user defined) flags.
 80%      6.6
 90%      6.9
 ```
+
+## XGBoost
 
 XGBoost is also built in to `st`. A simple workflow with the iris dataset is
 below.

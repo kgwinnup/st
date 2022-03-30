@@ -60,6 +60,14 @@ enum PredictOptions {
 enum TreeOptions {
     Train(TrainOptions),
     Predict(PredictOptions),
+
+    Importance {
+        #[structopt(short = "d", help = "dump model in text format")]
+        dump_model: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
 }
 
 #[derive(StructOpt, Debug)]
@@ -561,6 +569,8 @@ fn main() {
                 eprintln!("{} = {}", k, v);
             }
 
+            println!("{}", bst.dump_model(true, None).unwrap());
+
             let _ = bst.save(output).unwrap();
         }
 
@@ -577,6 +587,29 @@ fn main() {
 
             for (index, line) in lines.iter().enumerate() {
                 println!("{},{}", predict[index], line);
+            }
+        }
+
+        Command::Xgboost(TreeOptions::Importance { input, dump_model }) => {
+            let bytes = if let Some(path) = input {
+                match std::fs::read(path) {
+                    Ok(contents) => contents,
+
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let mut input = vec![];
+                let mut stdin = std::io::stdin();
+                let _ = stdin.read_to_end(&mut input).unwrap();
+                input
+            };
+
+            if dump_model {
+                let bst = Booster::load_buffer(&bytes).unwrap();
+                println!("{}", bst.dump_model(true, None).unwrap());
             }
         }
     }
