@@ -220,7 +220,7 @@ f0 = 0.004981032
 
 Another helpful script, at least for binary models is printing a basic
 statistics table. Input for both default and confusion matrix Eval subcommand
-options are a line separated tuple containing: predicted, actual.
+options are a line separated tuple containing: `predicted, actual`.
 
 ```bash
 > cat ~/Downloads/binary_output.txt | st eval
