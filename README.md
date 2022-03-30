@@ -181,7 +181,7 @@ predictor value. After the model is trained and saved, we can use it on our
 test set.
 
 ```bash
-> cat tests/iris_train.csv | ./target/debug/st xgboost train -n 3 -y 4 -m out.model -o multi:softmax
+> cat tests/iris_train.csv | st xgboost train -n 3 -y 4 -m out.model -o multi:softmax
 merror = 0.008
 ```
 
@@ -190,7 +190,7 @@ predict subcommand. The predicted value for the test set is added as the first
 column of the output.
 
 ```bash
-> cat tests/iris_test.csv | ./target/debug/st xgboost predict -m out.model
+> cat tests/iris_test.csv | st xgboost predict -m out.model
 1,7,3.2,4.7,1.4,1
 1,6.6,3,4.4,1.4,1
 1,5,2.3,3.3,1,1
@@ -220,7 +220,7 @@ Another helpful script, at least for binary models is printing a basic
 statistics table.
 
 ```bash
-> cat ~/Downloads/binary_output.txt | ./target/debug/st eval
+> cat ~/Downloads/binary_output.txt | st eval
 t        prec     f1       recall   fpr
 0.00   0.7533   0.8593   1.0000   1.0000
 0.05   0.9174   0.9487   0.9823   0.2703
