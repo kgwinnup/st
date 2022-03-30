@@ -136,8 +136,10 @@ user defined) flags.
 
 ## XGBoost
 
-XGBoost is built in to `st`. A simple workflow with the iris dataset is
-below.
+XGBoost is built in to `st`. A simple workflow with the iris dataset is below.
+XGBoost is usually the first model I start with when analyzing a dataset. Even
+if XGBoost isn't the final model i'll be using in production, it is super easy
+to train and most of all... interpret (well trees in general).
 
 We're going to perform a binary prediction, however, there are three classes in
 this set. So we need to ensure we're using a multiclass predictive objective.
