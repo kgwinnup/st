@@ -575,8 +575,8 @@ fn main() {
                     }
                 }
 
-                println!("{:4.2} {:4.2}", ttp, tfp);
-                println!("{:4.2} {:4.2}", tfn, ttn);
+                println!("{:6} {:6}", ttp, tfp);
+                println!("{:6} {:6}", tfn, ttn);
             } else {
                 println!(
                     "{:8} {:8} {:8} {:8} {:8}",
