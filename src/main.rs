@@ -146,6 +146,11 @@ enum Command {
 
     #[structopt(about = "train, predict, and understand xgboost models")]
     Xgboost(TreeOptions),
+
+    Eval {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
 }
 
 fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
@@ -430,6 +435,44 @@ fn importance(model_dump: String, typ: &str) {
     }
 }
 
+fn parse_tuple(input: &str) -> Vec<(f32, f32)> {
+    let mut data = vec![];
+
+    for line in input.split("\n") {
+        if line == "\n" || line == "" {
+            continue;
+        }
+
+        let cols = line.split(",").collect::<Vec<&str>>();
+        if cols.len() != 2 {
+            eprintln!("warning: invalid column count for parse_tuple: {}", line);
+            continue;
+        }
+
+        let temp: Result<f32, _> = cols[0].trim().parse();
+        let v1 = match temp {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        };
+
+        let temp: Result<f32, _> = cols[1].trim().parse();
+        let v2 = match temp {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        };
+
+        data.push((v1, v2));
+    }
+
+    data
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -487,6 +530,61 @@ fn main() {
             } else {
                 eprintln!("invalid graph type");
                 std::process::exit(1);
+            }
+        }
+
+        Command::Eval { input } => {
+            let raw_inputs = get_input(input);
+            let tuples = parse_tuple(&raw_inputs);
+
+            println!(
+                "{:8} {:8} {:8} {:8} {:8}",
+                "t", "prec", "f1", "recall", "fpr"
+            );
+
+            let mut threshold: f32 = 0.0;
+            loop {
+                if threshold > 1.0 {
+                    break;
+                }
+
+                let mut ttp: f32 = 0.0;
+                let mut tfp: f32 = 0.0;
+                let mut tfn: f32 = 0.0;
+                let mut ttn: f32 = 0.0;
+
+                for (p, a) in tuples.iter() {
+                    if *p >= threshold && *a == 1.0 {
+                        ttp += 1.0;
+                        continue;
+                    }
+
+                    if *p >= threshold && *a == 0.0 {
+                        tfp += 1.0;
+                        continue;
+                    }
+
+                    if *p < threshold && *a == 1.0 {
+                        tfn += 1.0;
+                        continue;
+                    }
+
+                    if *p < threshold && *a == 0.0 {
+                        ttn += 1.0;
+                        continue;
+                    }
+                }
+
+                let precision = ttp / (ttp + tfp);
+                let recall = ttp / (ttp + tfn);
+                let f1 = 2.0 * (recall * precision) / (recall + precision);
+                let fpr = tfp / (tfp + ttn);
+
+                println!(
+                    "{:.2} {:8.4} {:8.4} {:8.4} {:8.4}",
+                    threshold, precision, f1, recall, fpr
+                );
+                threshold += 0.05;
             }
         }
 
