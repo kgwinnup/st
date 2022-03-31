@@ -101,6 +101,12 @@ pub fn to_vector(raw_inputs: &str, with_header: bool) -> Vec<f64> {
     data
 }
 
+/// to_matrix parses a input and builds a DMatrix for use with XGBoost. If 'ycol' is a valid column
+/// index, that column will be held out and used as the labels for the DMatrix.
+/// One odd piece of this function is that it returns a tuple instead of just the DMatrix. This
+/// second value in the tuple is a vector of lines from the raw input. This is used as the output
+/// of the prediction subcommand. I couldn't think of a better way a the time to do this
+/// efficiently.
 pub fn to_matrix(
     raw_inputs: &str,
     ycol: usize,
