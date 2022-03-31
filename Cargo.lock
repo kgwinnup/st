@@ -54,14 +54,12 @@ checksum = "2e387b20dd573a96f36b173d9027483898f944d696521afd74e2caa3c813d86e"
 dependencies = [
  "bytemuck",
  "chrono",
- "csv-core",
  "either",
  "hash_hasher",
  "lexical-core",
  "multiversion",
  "num-traits",
  "simdutf8",
- "streaming-iterator",
  "strength_reduce",
 ]
 
@@ -455,15 +453,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
-name = "lexical"
-version = "6.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccd3e434c16f0164124ade12dcdee324fcc3dafb1cad0c7f1d8c2451a1aa6886"
-dependencies = [
- "lexical-core",
-]
-
-[[package]]
 name = "lexical-core"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -566,15 +555,6 @@ name = "memchr"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "308cc39be01b73d0d18f82a0e7b2a3df85245f84af96fdddc5d202d27e47b86a"
-
-[[package]]
-name = "memmap2"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "057a3db23999c867821a7a59feb06a578fcb03685e983dff90daf9e7d24ac08f"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "memoffset"
@@ -754,12 +734,9 @@ dependencies = [
  "ahash",
  "anyhow",
  "arrow2",
- "csv-core",
  "dirs",
  "lazy_static",
- "lexical",
  "memchr 2.4.1",
- "memmap2",
  "num",
  "num_cpus",
  "polars-arrow",
@@ -1028,21 +1005,27 @@ dependencies = [
  "rand",
  "rasciigraph",
  "serde_json",
- "st_core",
+ "st_input",
+ "st_stat",
  "structopt",
  "xgboost",
 ]
 
 [[package]]
-name = "st_core"
+name = "st_input"
 version = "0.1.0"
 dependencies = [
- "csv",
+ "xgboost",
+]
+
+[[package]]
+name = "st_stat"
+version = "0.1.0"
+dependencies = [
  "itertools",
- "polars-core",
- "polars-io",
  "rand",
  "rasciigraph",
+ "xgboost",
 ]
 
 [[package]]
@@ -1050,12 +1033,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "streaming-iterator"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "303235c177994a476226b80d076bd333b7b560fb05bd242a10609d11b07f81f5"
 
 [[package]]
 name = "strength_reduce"

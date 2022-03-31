@@ -1,9 +1,9 @@
-use st_core;
+use st_stat;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use xgboost::{parameters, Booster, DMatrix};
+use xgboost::{parameters, Booster};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -17,7 +17,16 @@ struct Opt {
 }
 
 #[derive(StructOpt, Debug)]
+enum ExtractOptions {
+    ByteHistogram {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+}
+
+#[derive(StructOpt, Debug)]
 enum TreeOptions {
+    #[structopt(about = "train a new binary or multiclass model")]
     Train {
         #[structopt(short, long, help = "predictor column")]
         ycol: usize,
@@ -53,6 +62,7 @@ enum TreeOptions {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "use an xgboost model against some input")]
     Predict {
         #[structopt(short, long, help = "path to model")]
         model_in: String,
@@ -64,6 +74,7 @@ enum TreeOptions {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "dump model importance statistics, and text version of the model itself")]
     Importance {
         #[structopt(short = "d", help = "dump model in text format")]
         dump_model: bool,
@@ -147,6 +158,9 @@ enum Command {
     #[structopt(about = "train, predict, and understand xgboost models")]
     Xgboost(TreeOptions),
 
+    #[structopt(
+        about = "evaluation metrics to score an output, confusion matrix, f1, recall, fpr"
+    )]
     Eval {
         #[structopt(
             short,
@@ -158,115 +172,9 @@ enum Command {
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
-}
 
-fn vectorize_column(raw_inputs: &str, with_header: bool) -> Vec<f64> {
-    let mut data = vec![];
-
-    for (index, line) in raw_inputs.split("\n").enumerate() {
-        if index == 0 && with_header {
-            continue;
-        }
-
-        if line == "\n" || line == "" {
-            continue;
-        }
-
-        let temp: Result<f64, _> = line.trim().parse();
-        match temp {
-            Ok(f) => data.push(f),
-            Err(_) => {
-                eprintln!("error converting to float: {} at line {}", line, index);
-                std::process::exit(1);
-            }
-        }
-    }
-
-    data
-}
-
-fn to_matrix(
-    raw_inputs: &str,
-    ycol: usize,
-    with_header: bool,
-    output_lines: bool,
-) -> (DMatrix, Vec<&str>) {
-    let mut xdata = Vec::new();
-    let mut ydata = Vec::new();
-
-    let mut rows = 0;
-
-    let mut lines = vec![];
-
-    for (index, line) in raw_inputs.split("\n").enumerate() {
-        if index == 0 && with_header {
-            continue;
-        }
-
-        if line == "\n" || line == "" {
-            continue;
-        }
-
-        let split = line.split(",");
-
-        for (index, val) in split.enumerate() {
-            let temp: Result<f32, _> = val.trim().parse();
-            match temp {
-                Ok(f) => {
-                    if index == ycol {
-                        ydata.push(f)
-                    } else {
-                        xdata.push(f)
-                    }
-                }
-                Err(_) => {
-                    eprintln!("error converting to float: {} at line {}", line, index);
-                    std::process::exit(1);
-                }
-            }
-        }
-
-        if output_lines {
-            lines.push(line);
-        }
-
-        rows += 1;
-    }
-
-    match DMatrix::from_dense(&xdata, rows) {
-        Ok(mut x) => {
-            let _ = x.set_labels(&ydata);
-            (x, lines)
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-}
-
-fn get_input(input: Option<PathBuf>) -> String {
-    if let Some(path) = input {
-        match std::fs::read_to_string(path) {
-            Ok(contents) => contents,
-
-            Err(e) => {
-                eprintln!("{}", e);
-                std::process::exit(1);
-            }
-        }
-    } else {
-        let mut input = String::new();
-        let stdin = std::io::stdin();
-
-        for line in stdin.lock().lines() {
-            let buf = line.expect("failed to read line");
-            input.push_str(&buf);
-            input.push('\n');
-        }
-
-        input
-    }
+    #[structopt(about = "various data transformations and feature generation tools")]
+    Extract(ExtractOptions),
 }
 
 #[derive(Default, Debug)]
@@ -442,44 +350,6 @@ fn importance(model_dump: String, typ: &str) {
     }
 }
 
-fn parse_tuple(input: &str) -> Vec<(f32, f32)> {
-    let mut data = vec![];
-
-    for line in input.split("\n") {
-        if line == "\n" || line == "" {
-            continue;
-        }
-
-        let cols = line.split(",").collect::<Vec<&str>>();
-        if cols.len() != 2 {
-            eprintln!("warning: invalid column count for parse_tuple: {}", line);
-            continue;
-        }
-
-        let temp: Result<f32, _> = cols[0].trim().parse();
-        let v1 = match temp {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("{}", e);
-                std::process::exit(1);
-            }
-        };
-
-        let temp: Result<f32, _> = cols[1].trim().parse();
-        let v2 = match temp {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("{}", e);
-                std::process::exit(1);
-            }
-        };
-
-        data.push((v1, v2));
-    }
-
-    data
-}
-
 fn main() {
     let opt = Opt::from_args();
 
@@ -490,8 +360,8 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = get_input(input);
-            st_core::sample(&raw_inputs, with_header, size, replace);
+            let raw_inputs = st_input::get_input(input);
+            st_stat::sample(&raw_inputs, with_header, size, replace);
         }
 
         Command::Summary {
@@ -502,12 +372,12 @@ fn main() {
             input,
         } => {
             println!("{:?}", foo);
-            let raw_inputs = get_input(input);
-            let mut data = vectorize_column(&raw_inputs, with_header);
+            let raw_inputs = st_input::get_input(input);
+            let mut data = st_input::to_vector(&raw_inputs, with_header);
             if transpose {
-                st_core::print_summary_t(&mut data, precision)
+                st_stat::print_summary_t(&mut data, precision)
             } else {
-                st_core::print_summary(&mut data, precision)
+                st_stat::print_summary(&mut data, precision)
             }
         }
 
@@ -516,9 +386,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = get_input(input);
-            let mut data = vectorize_column(&raw_inputs, with_header);
-            st_core::print_quintiles(&mut data, quintiles);
+            let raw_inputs = st_input::get_input(input);
+            let mut data = st_input::to_vector(&raw_inputs, with_header);
+            st_stat::print_quintiles(&mut data, quintiles);
         }
 
         Command::Graph {
@@ -526,14 +396,14 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = get_input(input);
-            let mut data = vectorize_column(&raw_inputs, with_header);
+            let raw_inputs = st_input::get_input(input);
+            let mut data = st_input::to_vector(&raw_inputs, with_header);
             let name = typ.to_lowercase();
 
             if name.starts_with("line") {
-                st_core::print_line(&data);
+                st_stat::print_line(&data);
             } else if name.starts_with("histo") {
-                st_core::print_histo(&mut data, 1);
+                st_stat::print_histo(&mut data, 1);
             } else {
                 eprintln!("invalid graph type");
                 std::process::exit(1);
@@ -544,8 +414,8 @@ fn main() {
             input,
             confusion_matrix,
         } => {
-            let raw_inputs = get_input(input);
-            let tuples = parse_tuple(&raw_inputs);
+            let raw_inputs = st_input::get_input(input);
+            let tuples = st_input::to_tuple(&raw_inputs);
 
             if let Some(t) = confusion_matrix {
                 let mut ttp: f32 = 0.0;
@@ -640,8 +510,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let raw_inputs = get_input(input);
-            let (training_set, _) = to_matrix(&raw_inputs, ycol, with_header, false);
+            let raw_inputs = st_input::get_input(input);
+            let (training_set, _) = st_input::to_matrix(&raw_inputs, ycol, with_header, false);
 
             let objective_fn = match objective.as_str() {
                 "binary:logistic" => parameters::learning::Objective::BinaryLogistic,
@@ -693,8 +563,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let inputs = get_input(input);
-            let (test_set, lines) = to_matrix(&inputs, 1000000, with_header, true);
+            let inputs = st_input::get_input(input);
+            let (test_set, lines) = st_input::to_matrix(&inputs, 1000000, with_header, true);
 
             let bst = Booster::load(model).unwrap();
             let predict = bst.predict(&test_set).unwrap();
@@ -733,6 +603,22 @@ fn main() {
                 let model = bst.dump_model(true, None).unwrap();
                 importance(model, &typ);
             }
+        }
+
+        Command::Extract(ExtractOptions::ByteHistogram { input }) => {
+            let input = st_input::get_input(input);
+            let histo = st_input::to_byte_histogram(input.as_bytes());
+            let length = histo.len();
+            let mut output = String::new();
+            for (index, b) in histo.iter().enumerate() {
+                if index < length - 1 {
+                    output.push_str(&format!("{},", b));
+                } else {
+                    output.push_str(&format!("{}", b));
+                }
+            }
+
+            println!("{}", output);
         }
     }
 }

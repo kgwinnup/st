@@ -3,7 +3,6 @@ use rand::distributions::{Distribution, Uniform};
 use rand::seq::SliceRandom;
 use rasciigraph;
 use std::collections::HashMap;
-//use std::io::{self, BufRead, BufReader};
 
 pub fn median(input: &mut [f64]) -> f64 {
     if input.len() == 0 {

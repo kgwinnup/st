@@ -1,5 +1,5 @@
 [package]
-name = "st_core"
+name = "st_stat"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,8 +9,5 @@ edition = "2021"
 rasciigraph = "0.1.1"
 itertools = "0.8.2"
 rand = "0.8.5"
-csv = "1.1.6"
-polars-core = "0.20.0"
-polars-io = { version = "0.20.0", features = ["csv-file"] }
-
+xgboost = "0.1.4"
 
