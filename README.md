@@ -18,6 +18,7 @@ project.
 5. [K-Quintiles](#k-quintiles)
 6. [XGBoost](#xgboost)
 7. [Model Evaluation](#model-evaluation)
+8. [Extract Features](#extract-features)
 
 # Installing
 
@@ -272,4 +273,15 @@ And a confusion matrix output
 cat ~/Downloads/binary_output.txt | st eval -c 0.8
    110      2
      3     35
+```
+
+## Extract Features
+
+Frequently, a normalized byte histogram is desired from some input. This will
+output a 256 sized series to stdout, where each index is the decimal mapping
+for that specific byte.
+
+```bash
+cat README.md | st extract byte-histogram
+0,0,0,0,0,0,0,0,0,0,0.027048063825647013, ...
 ```
