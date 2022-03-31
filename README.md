@@ -25,12 +25,14 @@ project.
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
 ```
+sudo apt-get install llvm-dev libclang-dev clang
 cargo build --release
 ```
 
 Or install it to the cargo bin directory (make sure it is in your $PATH).
 
 ```
+sudo apt-get install llvm-dev libclang-dev clang
 cargo install --path .
 ```
 
