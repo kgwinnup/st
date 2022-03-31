@@ -1,6 +1,8 @@
+use murmur3::murmur3_32;
 use st_stat;
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use xgboost::{parameters, Booster};
@@ -29,7 +31,18 @@ enum ExtractOptions {
     )]
     HashTrick {
         #[structopt(short, long, help = "number of buckets")]
-        buckets: usize,
+        kbuckets: usize,
+
+        #[structopt(short, long, help = "use 1 or 0 only in the buckets")]
+        binary: bool,
+
+        #[structopt(
+            short = "F",
+            long,
+            help = "delimeter used to split the items (default = ',')",
+            default_value = ","
+        )]
+        delimiter: String,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -623,7 +636,7 @@ fn main() {
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
-                if index < length - 1 {
+                if index < length - 2 {
                     output.push_str(&format!("{},", b));
                 } else {
                     output.push_str(&format!("{}", b));
@@ -633,6 +646,38 @@ fn main() {
             println!("{}", output);
         }
 
-        Command::Extract(ExtractOptions::HashTrick { buckets, input }) => {}
+        Command::Extract(ExtractOptions::HashTrick {
+            kbuckets,
+            binary,
+            delimiter,
+            input,
+        }) => {
+            let s = st_input::get_input(input);
+            let mut buckets_out: Vec<u32> = Vec::with_capacity(kbuckets);
+            for _ in 0..(kbuckets - 1) {
+                buckets_out.push(0);
+            }
+
+            for item in s.split(&delimiter) {
+                let hash_result = murmur3_32(&mut Cursor::new(item), 0).unwrap();
+                let index = hash_result % (kbuckets as u32 - 1);
+                if binary {
+                    buckets_out[index as usize] = 1;
+                } else {
+                    buckets_out[index as usize] += 1;
+                }
+            }
+
+            let mut out_str = String::new();
+
+            for (index, val) in buckets_out.iter().enumerate() {
+                if index < kbuckets - 2 {
+                    out_str.push_str(&format!("{},", val));
+                } else {
+                    out_str.push_str(&format!("{}", val));
+                }
+            }
+            println!("{}", out_str);
+        }
     }
 }

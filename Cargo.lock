@@ -586,6 +586,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "murmur3"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ead5388e485d38e622630c6b05afd3761a6701ff15c55b279ea5b31dcb62cff"
+
+[[package]]
 name = "nom"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1000,6 +1006,7 @@ version = "0.1.0"
 dependencies = [
  "csv",
  "itertools",
+ "murmur3",
  "polars-core",
  "polars-io",
  "rand",

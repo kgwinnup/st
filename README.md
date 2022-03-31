@@ -288,3 +288,14 @@ for that specific byte.
 cat README.md | st extract byte-histogram
 0,0,0,0,0,0,0,0,0,0,0.027048063825647013, ...
 ```
+
+Reducing the dimentionality of the data using the hash-trick is built in under
+the extract subcommand. Use the -F flag to set the delimiter.
+
+```bash
+> echo 'foo,bar,baz,raw,norm,etc' | ./target/debug/st extract hash-trick -k 10 -b
+0,0,1,1,0,0,1,1,0
+```
+
+
+
