@@ -18,7 +18,19 @@ struct Opt {
 
 #[derive(StructOpt, Debug)]
 enum ExtractOptions {
+    #[structopt(about = "create a normalized byte histogram of the input")]
     ByteHistogram {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(
+        about = "given a comma separted list of strings, apply the hash-trick with k buckets"
+    )]
+    HashTrick {
+        #[structopt(short, long, help = "number of buckets")]
+        buckets: usize,
+
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
@@ -173,7 +185,7 @@ enum Command {
         input: Option<PathBuf>,
     },
 
-    #[structopt(about = "various data transformations and feature generation tools")]
+    #[structopt(about = "data transformations and feature generation tools")]
     Extract(ExtractOptions),
 }
 
@@ -620,5 +632,7 @@ fn main() {
 
             println!("{}", output);
         }
+
+        Command::Extract(ExtractOptions::HashTrick { buckets, input }) => {}
     }
 }

@@ -11,14 +11,15 @@ regard to text files and piping data around. Additionally, we want to do those
 things quickly which is one of the reasons Rust is the language chosen for this
 project.
 
-0. [Usage](#usage)
-1. [Summary statistics](#summary-statistics)
-2. [Graphing](#graphing)
-3. [K-Quintiles](#k-quintiles)
-4. [XGBoost](#xgboost)
-5. [Model Evaluation](#model-evaluation)
+1. [Installing](#installing)
+2. [Usage](#usage)
+3. [Summary statistics](#summary-statistics)
+4. [Graphing](#graphing)
+5. [K-Quintiles](#k-quintiles)
+6. [XGBoost](#xgboost)
+7. [Model Evaluation](#model-evaluation)
 
-## Installing
+# Installing
 
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
