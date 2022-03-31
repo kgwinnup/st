@@ -11,6 +11,13 @@ regard to text files and piping data around. Additionally, we want to do those
 things quickly which is one of the reasons Rust is the language chosen for this
 project.
 
+0. [Usage](#usage)
+1. [Summary statistics](#summary-statistics)
+2. [Graphing](#graphing)
+3. [K-Quintiles](#k-quintiles)
+4. [XGBoost](#xgboost)
+5. [Model Evaluation](#model-evaluation)
+
 ## Installing
 
 Building locally requires the rust tool chain (https://rustup.rs/). 
@@ -50,13 +57,7 @@ SUBCOMMANDS:
     xgboost      train, predict, and understand xgboost models
 ```
 
-1. [Summary statistics](#summary-statistics)
-2. [Graphing](#graphing)
-3. [K-Quintiles](#k-quintiles)
-4. [XGBoost](#xgboost)
-5. [Model Evaluation](#model-evaluation)
-
-Note: The --help works after any subcommand to display that subcommands info,
+The --help works after any subcommand to display that subcommands info,
 flags, or options.
 
 ## Summary statistics
