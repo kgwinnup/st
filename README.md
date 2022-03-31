@@ -3,22 +3,24 @@
 
 `st` is a small tool for doing data science work at the command line. I spend a
 great deal of my time ssh'ing into various servers and often need to calculate
-simple statistics. Additionally, I think even machine learning, at least
-exploration, can benefit from a command line tool with various helper commands.
+simple statistics. Additionally, machine learning, at least exploration, can
+benefit from more command line tooling.
 
 One core goal with this project is to try and adher to the Unix philosophy with
 regard to text files and piping data around. Additionally, we want to do those
 things quickly which is one of the reasons Rust is the language chosen for this
 project.
 
-0. [Usage](#usage)
-1. [Summary statistics](#summary-statistics)
-2. [Graphing](#graphing)
-3. [K-Quintiles](#k-quintiles)
-4. [XGBoost](#xgboost)
-5. [Model Evaluation](#model-evaluation)
+1. [Installing](#installing)
+2. [Usage](#usage)
+3. [Summary statistics](#summary-statistics)
+4. [Graphing](#graphing)
+5. [K-Quintiles](#k-quintiles)
+6. [XGBoost](#xgboost)
+7. [Model Evaluation](#model-evaluation)
+8. [Extract Features](#extract-features)
 
-## Installing
+# Installing
 
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
@@ -200,6 +202,9 @@ all default parameters. The -y flag indicates which column is to be used as the
 predictor value. After the model is trained and saved, we can use it on our
 test set.
 
+Traiming parameters can be tuned, such as eta and max depth. See `st xgboost
+train --help` for more options.
+
 ```bash
 > cat tests/iris_train.csv | st xgboost train -n 3 -y 4 -m out.model -o multi:softmax
 merror = 0.008
@@ -272,3 +277,25 @@ cat ~/Downloads/binary_output.txt | st eval -c 0.8
    110      2
      3     35
 ```
+
+## Extract Features
+
+Frequently, a normalized byte histogram is desired from some input. This will
+output a 256 sized series to stdout, where each index is the decimal mapping
+for that specific byte.
+
+```bash
+cat README.md | st extract byte-histogram
+0,0,0,0,0,0,0,0,0,0,0.027048063825647013, ...
+```
+
+Reducing the dimentionality of the data using the hash-trick is built in under
+the extract subcommand. Use the -F flag to set the delimiter.
+
+```bash
+> echo 'foo,bar,baz,raw,norm,etc' | st extract hash-trick -k 10 -b
+0,0,1,1,0,0,1,1,0
+```
+
+
+
