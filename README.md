@@ -1,36 +1,15 @@
 
 # st
 
-`st` is a small CLI tool for doing simple data science work. It is not designed
-to replace a DS notebook, but is useful for some exploratory analysis if your
-like me and spend a lot of time on the command line.
+`st` is a small tool for doing data science work at the command line. I spend a
+great deal of my time ssh'ing into various servers and often need to calculate
+simple statistics. Additionally, I think even machine learning, at least
+exploration, can benefit from a command line tool with various helper commands.
 
-I am not 100% satisfied with the CLI interface but I also couldn't think of a
-better/easier way to do it. For now the interface directed by subcommands and
-within each subcommand is either a new subcommand or flags/options.
-
-The -h/--help works after any subcommand to display that subcommands flags or
-options.
-
-```
-st 0.1
-stat information and processing
-
-USAGE:
-    st <SUBCOMMAND>
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-SUBCOMMANDS:
-    graph        very simple cli graphing
-    help         Prints this message or the help of the given subcommand(s)
-    quintiles    k-quintile from a single vector (default k = 5)
-    sample       sample a vector, with or without replacement
-    summary      summary statistics from a single vector
-    xgboost      train, predict, and understand xgboost models
-```
+One core goal with this project is to try and adher to the Unix philosophy with
+regard to text files and piping data around. Additionally, we want to do those
+things quickly which is one of the reasons Rust is the language chosen for this
+project.
 
 ## Installing
 
@@ -46,7 +25,41 @@ Or install it to the cargo bin directory (make sure it is in your $PATH).
 cargo install --path .
 ```
 
-# Examples
+# Usage
+
+```
+> st --help
+st 0.1
+stat information and processing
+
+USAGE:
+    st <SUBCOMMAND>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+SUBCOMMANDS:
+    eval         evaluation metrics to score an output, confusion matrix, f1, recall, fpr
+    extract      various data transformations and feature generation tools
+    graph        very simple cli graphing
+    help         Prints this message or the help of the given subcommand(s)
+    quintiles    k-quintile from a single vector (default k = 5)
+    sample       sample a vector, with or without replacement
+    summary      summary statistics from a single vector
+    xgboost      train, predict, and understand xgboost models
+```
+
+1. [Summary statistics](#summary-statistics)
+2. [Graphing](#graphing)
+3. [K-Quintiles](#k-quintiles)
+4. [XGBoost](#xgboost)
+5. [Model Evaluation](#model-evaluation)
+
+Note: The --help works after any subcommand to display that subcommands info,
+flags, or options.
+
+## Summary statistics
 
 ```
 cat tests/iris.csv | awk -F',' '{print $1}' |st summary -h
@@ -54,7 +67,7 @@ n          min        max        mean       median     mode       sd         var
 150        4.3        7.9        5.8433332  5.8        5          0.8253013  0.68112224
 ```
 
-Or transpose the output
+Or transpose the output.
 
 ```
 cat tests/iris.csv | awk -F',' '{print $1}' |st summary -ht
@@ -68,7 +81,9 @@ stdev   0.8253013
 var     0.68112224
 ```
 
-Quick histogram and line plots
+## Graphing
+
+Quick histogram and line plots.
 
 ```
 > cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t histo
@@ -117,6 +132,8 @@ cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t line
  4.47 ┤     ││           ╰╯
  4.32 ┤     ╰╯
 ```
+
+## k-quintiles
 
 Simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is
 user defined) flags.
@@ -216,7 +233,7 @@ f1 = 0.011651897
 f0 = 0.004981032
 ```
 
-## Eval
+## Model Evalulation
 
 Another helpful script, at least for binary models is printing a basic
 statistics table. Input for both default and confusion matrix Eval subcommand
