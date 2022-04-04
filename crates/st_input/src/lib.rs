@@ -1,6 +1,5 @@
 use std::io::prelude::*;
 use std::path::PathBuf;
-use xgboost::DMatrix;
 
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
 /// read input from stdin. A new String is returned with the contents.
@@ -107,17 +106,9 @@ pub fn to_vector(raw_inputs: &str, with_header: bool) -> Vec<f64> {
 /// second value in the tuple is a vector of lines from the raw input. This is used as the output
 /// of the prediction subcommand. I couldn't think of a better way a the time to do this
 /// efficiently.
-pub fn to_matrix(
-    raw_inputs: &str,
-    ycol: usize,
-    with_header: bool,
-    output_lines: bool,
-) -> (DMatrix, Vec<&str>) {
+pub fn to_matrix(raw_inputs: &str, ycol: usize, with_header: bool) -> (Vec<Vec<f64>>, Vec<f32>) {
     let mut xdata = Vec::new();
     let mut ydata = Vec::new();
-
-    let mut rows = 0;
-    let mut lines = vec![];
 
     for (index, line) in raw_inputs.split("\n").enumerate() {
         if index == 0 && with_header {
@@ -130,14 +121,16 @@ pub fn to_matrix(
 
         let split = line.split(",");
 
+        let mut row = vec![];
+
         for (index, val) in split.enumerate() {
-            let temp: Result<f32, _> = val.trim().parse();
+            let temp: Result<f64, _> = val.trim().parse();
             match temp {
                 Ok(f) => {
                     if index == ycol {
-                        ydata.push(f)
+                        ydata.push(f as f32)
                     } else {
-                        xdata.push(f)
+                        row.push(f)
                     }
                 }
                 Err(_) => {
@@ -147,21 +140,8 @@ pub fn to_matrix(
             }
         }
 
-        if output_lines {
-            lines.push(line);
-        }
-
-        rows += 1;
+        xdata.push(row);
     }
 
-    match DMatrix::from_dense(&xdata, rows) {
-        Ok(mut x) => {
-            let _ = x.set_labels(&ydata);
-            (x, lines)
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
+    (xdata, ydata)
 }

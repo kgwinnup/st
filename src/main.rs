@@ -5,7 +5,31 @@ use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use xgboost::{parameters, Booster};
+use xgboost::{parameters, Booster, DMatrix};
+
+fn to_xgboost_dataset(xdata: &Vec<Vec<f64>>, ydata: Option<Vec<f32>>) -> DMatrix {
+    let rows = xdata.len();
+    let mut xdata2 = vec![];
+
+    for row in xdata {
+        for item in row {
+            xdata2.push(*item as f32);
+        }
+    }
+
+    match DMatrix::from_dense(&xdata2, rows) {
+        Ok(mut x) => {
+            if let Some(y) = ydata {
+                let _ = x.set_labels(&y);
+            }
+            x
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    }
+}
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -56,11 +80,11 @@ enum TreeOptions {
         #[structopt(short, long, help = "predictor column")]
         ycol: usize,
 
-        #[structopt(short, long, help = "max depth")]
-        depth: Option<u32>,
+        #[structopt(short, long, help = "max depth", default_value = "6")]
+        depth: u32,
 
-        #[structopt(short, long, help = "eta")]
-        eta: Option<f32>,
+        #[structopt(short, long, help = "eta", default_value = "3")]
+        eta: f32,
 
         #[structopt(short = "m", long, help = "path to save model")]
         model_out: String,
@@ -80,6 +104,14 @@ enum TreeOptions {
         )]
         nclasses: u32,
 
+        #[structopt(
+            short,
+            long,
+            help = "how many boosted rounds, default is 10",
+            default_value = "10"
+        )]
+        rounds: u32,
+
         #[structopt(short = "h", long = "with-header", help = "with header")]
         with_header: bool,
 
@@ -89,6 +121,9 @@ enum TreeOptions {
 
     #[structopt(about = "use an xgboost model against some input")]
     Predict {
+        #[structopt(short, long, help = "predictor column", default_value = "1000000")]
+        ycol: usize,
+
         #[structopt(short, long, help = "path to model")]
         model_in: String,
 
@@ -532,11 +567,14 @@ fn main() {
             model_out: output,
             objective,
             nclasses,
+            rounds,
             with_header,
             input,
         }) => {
             let raw_inputs = st_input::get_input(input);
-            let (training_set, _) = st_input::to_matrix(&raw_inputs, ycol, with_header, false);
+            let (xdata, ydata) = st_input::to_matrix(&raw_inputs, ycol, with_header);
+
+            let training_set = to_xgboost_dataset(&xdata, Some(ydata));
 
             let objective_fn = match objective.as_str() {
                 "binary:logistic" => parameters::learning::Objective::BinaryLogistic,
@@ -553,12 +591,9 @@ fn main() {
                 .build()
                 .unwrap();
 
-            let eta_val = eta.unwrap_or(0.3);
-            let depth_val = depth.unwrap_or(6);
-
             let tree_params = parameters::tree::TreeBoosterParametersBuilder::default()
-                .max_depth(depth_val)
-                .eta(eta_val)
+                .max_depth(depth)
+                .eta(eta)
                 .build()
                 .unwrap();
 
@@ -572,6 +607,7 @@ fn main() {
             let training_params = parameters::TrainingParametersBuilder::default()
                 .dtrain(&training_set)
                 .booster_params(booster_params)
+                .boost_rounds(rounds)
                 .build()
                 .unwrap();
 
@@ -584,18 +620,35 @@ fn main() {
         }
 
         Command::Xgboost(TreeOptions::Predict {
+            ycol,
             model_in: model,
             with_header,
             input,
         }) => {
             let inputs = st_input::get_input(input);
-            let (test_set, lines) = st_input::to_matrix(&inputs, 1000000, with_header, true);
+            let (xdata, ydata) = st_input::to_matrix(&inputs, ycol, with_header);
+            let test_set = to_xgboost_dataset(&xdata, None);
 
             let bst = Booster::load(model).unwrap();
-            let predict = bst.predict(&test_set).unwrap();
+            let predicted = bst.predict(&test_set).unwrap();
 
-            for (index, line) in lines.iter().enumerate() {
-                println!("{},{}", predict[index], line);
+            for (index, row) in xdata.iter().enumerate() {
+                let mut xs = String::new();
+                let size = row.len();
+
+                for (index, item) in row.iter().enumerate() {
+                    if index < size - 2 {
+                        xs.push_str(&format!("{},", item));
+                    } else {
+                        xs.push_str(&format!("{}", item));
+                    }
+                }
+
+                if ydata.is_empty() {
+                    println!("{},{}", predicted[index], xs);
+                } else {
+                    println!("{},{},{}", predicted[index], ydata[index], xs);
+                };
             }
         }
 

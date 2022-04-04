@@ -1021,9 +1021,6 @@ dependencies = [
 [[package]]
 name = "st_input"
 version = "0.1.0"
-dependencies = [
- "xgboost",
-]
 
 [[package]]
 name = "st_stat"
