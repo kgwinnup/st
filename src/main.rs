@@ -83,7 +83,7 @@ enum TreeOptions {
         #[structopt(short, long, help = "max depth", default_value = "6")]
         depth: u32,
 
-        #[structopt(short, long, help = "eta", default_value = "3")]
+        #[structopt(short, long, help = "eta", default_value = "0.3")]
         eta: f32,
 
         #[structopt(short = "m", long, help = "path to save model")]
