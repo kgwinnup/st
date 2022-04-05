@@ -166,9 +166,6 @@ enum Command {
         )]
         precision: u32,
 
-        #[structopt(short, long)]
-        foo: Vec<u32>,
-
         #[structopt(short = "h", long = "with-header")]
         with_header: bool,
 
@@ -427,11 +424,9 @@ fn main() {
         Command::Summary {
             transpose,
             precision,
-            foo,
             with_header,
             input,
         } => {
-            println!("{:?}", foo);
             let raw_inputs = st_input::get_input(input);
             let mut data = st_input::to_vector(&raw_inputs, with_header);
             if transpose {
@@ -632,12 +627,14 @@ fn main() {
             let bst = Booster::load(model).unwrap();
             let predicted = bst.predict(&test_set).unwrap();
 
+            let mut buf = String::new();
+
             for (index, row) in xdata.iter().enumerate() {
                 let mut xs = String::new();
                 let size = row.len();
 
                 for (index, item) in row.iter().enumerate() {
-                    if index < size - 2 {
+                    if index < size - 1 {
                         xs.push_str(&format!("{},", item));
                     } else {
                         xs.push_str(&format!("{}", item));
@@ -645,10 +642,19 @@ fn main() {
                 }
 
                 if ydata.is_empty() {
-                    println!("{},{}", predicted[index], xs);
+                    buf.push_str(&format!("{},{}\n", predicted[index], xs));
                 } else {
-                    println!("{},{},{}", predicted[index], ydata[index], xs);
+                    buf.push_str(&format!("{},{},{}\n", predicted[index], ydata[index], xs));
                 };
+
+                if index % 1000 == 0 {
+                    std::io::stdout().write(&buf.as_bytes()).unwrap();
+                    buf = String::new();
+                }
+            }
+
+            if !buf.is_empty() {
+                std::io::stdout().write(&buf.as_bytes()).unwrap();
             }
         }
 

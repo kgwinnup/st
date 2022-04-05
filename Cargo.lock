@@ -1029,7 +1029,6 @@ dependencies = [
  "itertools",
  "rand",
  "rasciigraph",
- "xgboost",
 ]
 
 [[package]]
