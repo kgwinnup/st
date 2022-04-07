@@ -506,7 +506,7 @@ fn main() {
             let mut body = String::new();
             let mut header = String::new();
 
-            header.push_str(&format!("{:<8}", ""));
+            header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
                 let index = size - 1 - i;
@@ -658,8 +658,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::ByteHistogram { input }) => {
-            let input = st_input::get_input(input);
-            let histo = st_input::to_byte_histogram(input.as_bytes());
+            let input = st_input::get_input_bytes(input);
+            let histo = st_input::to_byte_histogram(&input);
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {

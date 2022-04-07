@@ -20,6 +20,17 @@ pub fn get_input(input: Option<PathBuf>) -> String {
     }
 }
 
+pub fn get_input_bytes(input: Option<PathBuf>) -> Vec<u8> {
+    if let Some(path) = input {
+        std::fs::read(path).unwrap()
+    } else {
+        let mut stdin = std::io::stdin();
+        let mut buf = vec![];
+        let _ = stdin.read_to_end(&mut buf);
+        buf
+    }
+}
+
 /// calculates and normalizes the byte histogram
 pub fn to_byte_histogram(bytes: &[u8]) -> Vec<f64> {
     let mut histo: Vec<f64> = Vec::with_capacity(256);
