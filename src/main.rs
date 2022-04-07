@@ -222,9 +222,9 @@ enum Command {
         #[structopt(
             short,
             long,
-            help = "output confustion matrix for some threshold [0,1]"
+            help = "if value is (0,1) set a threshold at which the value will be converted to 1"
         )]
-        confusion_matrix: Option<f32>,
+        threshold: Option<f32>,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -465,94 +465,62 @@ fn main() {
             }
         }
 
-        Command::Eval {
-            input,
-            confusion_matrix,
-        } => {
+        //   313      7
+        //    42    338
+        Command::Eval { threshold, input } => {
             let raw_inputs = st_input::get_input(input);
             let tuples = st_input::to_tuple(&raw_inputs);
 
-            if let Some(t) = confusion_matrix {
-                let mut ttp: f32 = 0.0;
-                let mut tfp: f32 = 0.0;
-                let mut tfn: f32 = 0.0;
-                let mut ttn: f32 = 0.0;
+            let mut classes = HashMap::new();
 
-                for (p, a) in tuples.iter() {
-                    if *p >= t && *a == 1.0 {
-                        ttp += 1.0;
-                        continue;
-                    }
-
-                    if *p >= t && *a == 0.0 {
-                        tfp += 1.0;
-                        continue;
-                    }
-
-                    if *p < t && *a == 1.0 {
-                        tfn += 1.0;
-                        continue;
-                    }
-
-                    if *p < t && *a == 0.0 {
-                        ttn += 1.0;
-                        continue;
-                    }
-                }
-
-                println!("{:6} {:6}", ttp, tfp);
-                println!("{:6} {:6}", tfn, ttn);
-            } else {
-                println!(
-                    "{:8} {:8} {:8} {:8} {:8}",
-                    "t", "prec", "f1", "recall", "fpr"
-                );
-
-                let mut threshold: f32 = 0.0;
-                loop {
-                    if threshold > 1.0 {
-                        break;
-                    }
-
-                    let mut ttp: f32 = 0.0;
-                    let mut tfp: f32 = 0.0;
-                    let mut tfn: f32 = 0.0;
-                    let mut ttn: f32 = 0.0;
-
-                    for (p, a) in tuples.iter() {
-                        if *p >= threshold && *a == 1.0 {
-                            ttp += 1.0;
-                            continue;
-                        }
-
-                        if *p >= threshold && *a == 0.0 {
-                            tfp += 1.0;
-                            continue;
-                        }
-
-                        if *p < threshold && *a == 1.0 {
-                            tfn += 1.0;
-                            continue;
-                        }
-
-                        if *p < threshold && *a == 0.0 {
-                            ttn += 1.0;
-                            continue;
-                        }
-                    }
-
-                    let precision = ttp / (ttp + tfp);
-                    let recall = ttp / (ttp + tfn);
-                    let f1 = 2.0 * (recall * precision) / (recall + precision);
-                    let fpr = tfp / (tfp + ttn);
-
-                    println!(
-                        "{:.2} {:8.4} {:8.4} {:8.4} {:8.4}",
-                        threshold, precision, f1, recall, fpr
-                    );
-                    threshold += 0.05;
-                }
+            for (_, c) in &tuples {
+                // f32 is not hashable, convert to string
+                classes.insert(format!("{}", c), 1);
             }
+
+            let size = classes.keys().len();
+            let mut indexes = vec![];
+            let mut matrix = vec![];
+
+            for k in classes.keys().into_iter() {
+                indexes.push(k);
+                let mut row = vec![];
+                for _ in 0..size {
+                    row.push(0);
+                }
+                matrix.push(row);
+            }
+
+            for (p, a) in &tuples {
+                let val = if let Some(t) = threshold {
+                    (*p + (1.0 - t)) as usize
+                } else if size == 2 {
+                    (*p + 0.5) as usize
+                } else {
+                    *p as usize
+                };
+
+                matrix[val][*a as usize] += 1;
+            }
+
+            let mut body = String::new();
+            let mut header = String::new();
+
+            header.push_str(&format!("{:<8}", ""));
+
+            for i in 0..size {
+                let index = size - 1 - i;
+                header.push_str(&format!("{:<8}", index));
+                body.push_str(&format!("{:<8}", index));
+
+                for j in 0..size {
+                    body.push_str(&format!("{:<8}", matrix[index][size - 1 - j]));
+                }
+                body.push('\n');
+            }
+
+            println!("{}", header);
+            println!("{}", body);
         }
 
         Command::Xgboost(TreeOptions::Train {
