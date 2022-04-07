@@ -506,15 +506,15 @@ fn main() {
             let mut body = String::new();
             let mut header = String::new();
 
-            header.push_str(&format!("{}\t", ""));
+            header.push_str(&format!("{:<8}", ""));
 
             for i in 0..size {
                 let index = size - 1 - i;
-                header.push_str(&format!("{}\t", index));
-                body.push_str(&format!("{}\t", index));
+                header.push_str(&format!("{:<8}", index));
+                body.push_str(&format!("{:<8}", index));
 
                 for j in 0..size {
-                    body.push_str(&format!("{}\t", matrix[index][size - 1 - j]));
+                    body.push_str(&format!("{:<8}", matrix[index][size - 1 - j]));
                 }
                 body.push('\n');
             }
