@@ -243,41 +243,22 @@ f0 = 0.004981032
 
 ## Model Evalulation
 
-Another helpful script, at least for binary models is printing a basic
-statistics table. Input for both default and confusion matrix Eval subcommand
-options are a line separated tuple containing: `predicted, actual`.
+Looking at a confusion matrix for binary or multiclass prediction is helpful.
+If you pass results in the format `prediction, actual` a confusion matrix will
+be printed.
+
+For binary classification, the `prediction` can be a interval (0,1), by default
+0.5 is used as the threshold for the predicted class. Passing in the `-t` flag
+lets you specify a custom threshold.
 
 ```bash
-> cat ~/Downloads/binary_output.txt | st eval
-t        prec     f1       recall   fpr
-0.00   0.7533   0.8593   1.0000   1.0000
-0.05   0.9174   0.9487   0.9823   0.2703
-0.10   0.9250   0.9528   0.9823   0.2432
-0.15   0.9652   0.9737   0.9823   0.1081
-0.20   0.9652   0.9737   0.9823   0.1081
-0.25   0.9652   0.9737   0.9823   0.1081
-0.30   0.9652   0.9737   0.9823   0.1081
-0.35   0.9652   0.9737   0.9823   0.1081
-0.40   0.9652   0.9737   0.9823   0.1081
-0.45   0.9737   0.9780   0.9823   0.0811
-0.50   0.9737   0.9780   0.9823   0.0811
-0.55   0.9737   0.9780   0.9823   0.0811
-0.60   0.9737   0.9780   0.9823   0.0811
-0.65   0.9823   0.9823   0.9823   0.0541
-0.70   0.9823   0.9823   0.9823   0.0541
-0.75   0.9823   0.9823   0.9823   0.0541
-0.80   0.9821   0.9778   0.9735   0.0541
-0.85   0.9821   0.9778   0.9735   0.0541
-0.90   0.9910   0.9821   0.9735   0.0270
-0.95   1.0000   0.9727   0.9469   0.0000
-```
+> st xgboost predict -m iris.model tests/iris_test.csv | awk -F',' '{print $1 "," $6}' > iris_results.csv
 
-And a confusion matrix output 
-
-```bash
-cat ~/Downloads/binary_output.txt | st eval -c 0.8
-   110      2
-     3     35
+> cat iris_results.csv | st eval
+        2       1       0
+2       7       1       0
+1       0       9       0
+0       0       0       8
 ```
 
 ## Extract Features
