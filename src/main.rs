@@ -323,8 +323,14 @@ enum Command {
         )]
         threshold: Option<f32>,
 
-        #[structopt(short, long, long = "show verbose output")]
+        #[structopt(short, long, help = "show verbose output")]
         verbose: bool,
+
+        #[structopt(
+            long,
+            help = "if results are binary predictions in (0,1), output a table for each threshold and that thresholds metrics."
+        )]
+        table: bool,
 
         #[structopt(
             short,
@@ -567,6 +573,7 @@ fn main() {
         Command::Eval {
             threshold,
             verbose,
+            table,
             base,
             input,
         } => {
@@ -585,7 +592,7 @@ fn main() {
                 vec![]
             };
 
-            let matrix = st_core::confusion_matrix(tuples, threshold);
+            let matrix = st_core::confusion_matrix(&tuples, threshold);
             let stats = st_core::confusion_matrix_stats(&matrix);
 
             let size = matrix.len();
@@ -641,7 +648,7 @@ fn main() {
                     let prob_class_given_positive = (stat.tpr * bases[stat.label]) / prob_positive;
 
                     bayes_calc_str.push_str(&format!(
-                        "{}: Pr(class_{} | positive) = {}\n",
+                        "{}: Pr(class_{}|positive) = {}\n",
                         stat.label, stat.label, prob_class_given_positive
                     ));
                 }
@@ -649,11 +656,25 @@ fn main() {
 
             if verbose {
                 print!("{}", verbose_str);
+                println!("");
             }
 
             if !bases.is_empty() {
-                println!("");
                 print!("{}", bayes_calc_str);
+                println!("");
+            }
+
+            if table {
+                let output = st_core::threshold_table_stats(&tuples);
+
+                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "trp", "fpr");
+
+                for row in output {
+                    println!(
+                        "{:<8.2}{:<8.4}{:<8.4}{:<8.4}{:<8.4}",
+                        row[0], row[1], row[2], row[3], row[4]
+                    );
+                }
             }
         }
 

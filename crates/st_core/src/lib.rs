@@ -76,10 +76,10 @@ pub fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
     )
 }
 
-pub fn confusion_matrix(tuples: Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<Vec<u32>> {
+pub fn confusion_matrix(tuples: &Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<Vec<u32>> {
     let mut classes = HashMap::new();
 
-    for (_, c) in &tuples {
+    for (_, c) in tuples {
         // f32 is not hashable, convert to string
         classes.insert(format!("{}", c), 1);
     }
@@ -97,7 +97,7 @@ pub fn confusion_matrix(tuples: Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<
     }
 
     // intended to use only with binary (0,1) ranges. Not softprob (yet).
-    for (p, actual_class_col) in &tuples {
+    for (p, actual_class_col) in tuples {
         let predicted_class_row = if let Some(t) = threshold {
             (*p + (1.0 - t)) as usize
         } else if size == 2 {
@@ -188,6 +188,54 @@ pub fn confusion_matrix_stats(matrix: &Vec<Vec<u32>>) -> Vec<CMatrixStats> {
     stats.sort_by(|a, b| a.label.cmp(&b.label));
 
     stats
+}
+
+pub fn threshold_table_stats(tuples: &Vec<(f32, f32)>) -> Vec<Vec<f32>> {
+    let mut out = vec![];
+    let mut t = 0.0;
+
+    loop {
+        if t > 1.0 {
+            break;
+        }
+
+        let mut ttp: f32 = 0.0;
+        let mut tfp: f32 = 0.0;
+        let mut tfn: f32 = 0.0;
+        let mut ttn: f32 = 0.0;
+
+        for (p, a) in tuples {
+            if *p >= t && *a == 1.0 {
+                ttp += 1.0;
+                continue;
+            }
+
+            if *p >= t && *a == 0.0 {
+                tfp += 1.0;
+                continue;
+            }
+
+            if *p < t && *a == 1.0 {
+                tfn += 1.0;
+                continue;
+            }
+
+            if *p < t && *a == 0.0 {
+                ttn += 1.0;
+                continue;
+            }
+        }
+
+        let precision = ttp / (ttp + tfp);
+        let recall = ttp / (ttp + tfn);
+        let f1 = 2.0 * (recall * precision) / (recall + precision);
+        let fpr = tfp / (tfp + ttn);
+
+        out.push(vec![t, precision, recall, f1, fpr]);
+        t += 0.05;
+    }
+
+    out
 }
 
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
