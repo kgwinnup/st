@@ -600,7 +600,10 @@ fn main() {
 
             let mut base_calc_str = String::new();
             let mut verbose_str = String::new();
-            verbose_str.push_str(&format!("{:<8}{:<8}{:<8}\n", "class", "tpr", "fpr"));
+            verbose_str.push_str(&format!(
+                "{:<8}{:<8}{:<8}{:<8}{:<8}\n",
+                "class", "tpr", "fpr", "tnr", "fnr"
+            ));
 
             for k in 0..size {
                 let v = counts.get_mut(&k).unwrap();
@@ -608,9 +611,14 @@ fn main() {
                 v[3] = total - v[0] - v[1] - v[2];
                 let fpr = v[2] / (v[2] + v[3]);
                 let tpr = v[0] / (v[0] + v[1]);
+                let fnr = v[1] / (v[1] + v[0]);
+                let tnr = v[3] / (v[3] + v[1]);
 
                 if verbose {
-                    verbose_str.push_str(&format!("{:<8}{:<8.3}{:<8.3}\n", k, tpr, fpr));
+                    verbose_str.push_str(&format!(
+                        "{:<8}{:<8.3}{:<8.3}{:<8.3}{:<8.3}\n",
+                        k, tpr, fpr, tnr, fnr
+                    ));
                 }
 
                 if !bases.is_empty() {

@@ -140,19 +140,21 @@ st eval -v iris_results.csv
 1       0       9       0
 0       0       0       8
 
-class   tpr     fpr
-0       0.875   0.000
-1       1.000   0.062
-2       1.000   0.000
+class   tpr     fpr     tnr     fnr
+0       0.875   0.000   0.944   0.125
+1       1.000   0.062   1.000   0.000
+2       1.000   0.000   1.000   0.000
 ```
 
-For binary and softprob objective functions. There is also a Bayes estimator of
+For binary and softmax objective functions. There is also a Bayes estimator of
 the models effective performance. This requires passing in a list of base rates
 of occurrence for a specific class. The length of the list much match the number
 of classes. 
 
-In the example below, the base rate occurrence of the predictor is very low in
-the real population, Bayes is very helpful here.
+Apply Bayes formula, given a natual rate of occurance for the target class. In
+the example below, the natural rate of class_1 is very low. This answers the
+question: if the model predicts class_N, what is the probability that the
+predicted input is of class_N.
 
 ```bash
 st eval -v -b '0.99,0.01' results.csv
@@ -160,9 +162,9 @@ st eval -v -b '0.99,0.01' results.csv
 1       313     7
 0       42      338
 
-class   tpr     fpr
-0       0.978   0.111
-1       0.889   0.022
+class   tpr     fpr     tnr     fnr
+0       0.978   0.111   0.980   0.022
+1       0.889   0.022   0.882   0.111
 
 0: Pr(class_0 | positive) = 0.99885994
 1: Pr(class_1 | positive) = 0.291144
