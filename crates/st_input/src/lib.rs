@@ -1,6 +1,8 @@
 use std::io::prelude::*;
 use std::path::PathBuf;
 
+use std::str::FromStr;
+
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
 /// read input from stdin. A new String is returned with the contents.
 pub fn get_input(input: Option<PathBuf>) -> String {
@@ -46,6 +48,23 @@ pub fn to_byte_histogram(bytes: &[u8]) -> Vec<f64> {
     let sum = bytes.len() as f64;
 
     histo.iter().map(|x| x / sum).collect()
+}
+
+pub fn str_to_vector<F: FromStr>(s: &str, sep: &str) -> Result<Vec<F>, <F as FromStr>::Err> {
+    let mut out = vec![];
+    for i in s.split(sep).into_iter() {
+        match i.trim().parse() {
+            Ok(f) => {
+                out.push(f);
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    Ok(out)
 }
 
 pub fn to_tuple(input: &str) -> Vec<(f32, f32)> {

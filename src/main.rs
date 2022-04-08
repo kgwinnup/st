@@ -216,7 +216,7 @@ enum Command {
     Xgboost(TreeOptions),
 
     #[structopt(
-        about = "evaluation metrics to score an output, confusion matrix, f1, recall, fpr"
+        about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
     )]
     Eval {
         #[structopt(
@@ -225,6 +225,16 @@ enum Command {
             help = "if value is (0,1) set a threshold at which the value will be converted to 1"
         )]
         threshold: Option<f32>,
+
+        #[structopt(short, long, long = "show verbose output")]
+        verbose: bool,
+
+        #[structopt(
+            short,
+            long,
+            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
+        )]
+        base: Option<String>,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -467,9 +477,26 @@ fn main() {
 
         //   313      7
         //    42    338
-        Command::Eval { threshold, input } => {
+        Command::Eval {
+            threshold,
+            verbose,
+            base,
+            input,
+        } => {
             let raw_inputs = st_input::get_input(input);
             let tuples = st_input::to_tuple(&raw_inputs);
+
+            let bases: Vec<f32> = if let Some(s) = base {
+                match st_input::str_to_vector(&s, ",") {
+                    Ok(xs) => xs,
+                    Err(_) => {
+                        eprintln!("error parsing -b list");
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                vec![]
+            };
 
             let mut classes = HashMap::new();
 
@@ -479,11 +506,10 @@ fn main() {
             }
 
             let size = classes.keys().len();
-            let mut indexes = vec![];
             let mut matrix = vec![];
 
-            for k in classes.keys().into_iter() {
-                indexes.push(k);
+            // create the confusion matrix
+            for _ in 0..size {
                 let mut row = vec![];
                 for _ in 0..size {
                     row.push(0);
@@ -491,8 +517,9 @@ fn main() {
                 matrix.push(row);
             }
 
-            for (p, a) in &tuples {
-                let val = if let Some(t) = threshold {
+            // intended to use only with binary (0,1) ranges. Not softprob (yet).
+            for (p, actual_class_col) in &tuples {
+                let predicted_class_row = if let Some(t) = threshold {
                     (*p + (1.0 - t)) as usize
                 } else if size == 2 {
                     (*p + 0.5) as usize
@@ -500,27 +527,115 @@ fn main() {
                     *p as usize
                 };
 
-                matrix[val][*a as usize] += 1;
+                matrix[predicted_class_row][*actual_class_col as usize] += 1;
             }
 
             let mut body = String::new();
             let mut header = String::new();
 
+            // reverse each row so they are in descending order
+            // after this the matrix is in descending order from top/left to bottom/right
+            // the purpose for ordering this way is for a binary prediction this defautt layout
+            // matches a confusion matrix
+            // TP FP
+            // FN TN
+            for i in 0..size {
+                matrix[i].reverse();
+            }
+            matrix.reverse();
+
+            // convert the matrix into a formatted string for stdout
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
-                let index = size - 1 - i;
-                header.push_str(&format!("{:<8}", index));
-                body.push_str(&format!("{:<8}", index));
+                header.push_str(&format!("{:<8}", size - 1 - i));
+
+                body.push_str(&format!("{:<8}", size - 1 - i));
 
                 for j in 0..size {
-                    body.push_str(&format!("{:<8}", matrix[index][size - 1 - j]));
+                    body.push_str(&format!("{:<8}", matrix[i][j]));
                 }
+
                 body.push('\n');
             }
 
+            // print matrix to stdout
             println!("{}", header);
             println!("{}", body);
+
+            let mut counts = HashMap::new();
+            for i in 0..size {
+                // TP FN FP TN
+                counts.insert(i, vec![0.0, 0.0, 0.0, 0.0]);
+            }
+
+            let mut total = 0.0;
+
+            for i in 0..size {
+                let mut fn_i = 0.0;
+
+                for j in 0..size {
+                    // total the entire matrix
+                    total += matrix[i][j] as f32;
+
+                    // TP
+                    if i == j {
+                        let data = counts.get_mut(&i).unwrap();
+                        data[0] = matrix[i][j] as f32;
+                        continue;
+                    }
+
+                    let data = counts.get_mut(&i).unwrap();
+                    // FP
+                    data[2] += matrix[j][i] as f32;
+
+                    // FN
+                    fn_i += matrix[i][j] as f32;
+                }
+
+                let data = counts.get_mut(&i).unwrap();
+                // FN
+                data[1] = fn_i;
+            }
+
+            let mut base_calc_str = String::new();
+            let mut verbose_str = String::new();
+            verbose_str.push_str(&format!("{:<8}{:<8}{:<8}\n", "class", "tpr", "fpr"));
+
+            for k in 0..size {
+                let v = counts.get_mut(&k).unwrap();
+                // TN
+                v[3] = total - v[0] - v[1] - v[2];
+                let fpr = v[2] / (v[2] + v[3]);
+                let tpr = v[0] / (v[0] + v[1]);
+
+                if verbose {
+                    verbose_str.push_str(&format!("{:<8}{:<8.3}{:<8.3}\n", k, tpr, fpr));
+                }
+
+                if !bases.is_empty() {
+                    if bases.len() != size {
+                        eprintln!(
+                            "invalid number of --base values, it must match the number of classes"
+                        );
+                        std::process::exit(1);
+                    }
+
+                    let temp = (tpr * bases[k]) + (fpr * (1.0 - bases[k]));
+                    let val = (tpr * bases[k]) / temp;
+                    base_calc_str
+                        .push_str(&format!("{}: Pr(class_{} | positive) = {}\n", k, k, val));
+                }
+            }
+
+            if verbose {
+                print!("{}", verbose_str);
+            }
+
+            if !bases.is_empty() {
+                println!("");
+                print!("{}", base_calc_str);
+            }
         }
 
         Command::Xgboost(TreeOptions::Train {
