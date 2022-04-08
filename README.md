@@ -4,9 +4,12 @@
 `st` is a small tool for doing data science work at the command line. I spend a
 great deal of my time ssh'ing into various servers and often need to calculate
 simple statistics. Additionally, machine learning, at least exploration, can
-benefit from more command line tooling.
+benefit from more command line tooling. 
 
-One core goal with this project is to try and adher to the Unix philosophy with
+Largely, this is built off of my workflow, but I've tried to make it as useful
+generally as possible.
+
+One core goal with this project is to try and adhere to the Unix philosophy with
 regard to text files and piping data around. Additionally, we want to do those
 things quickly which is one of the reasons Rust is the language chosen for this
 project.
@@ -104,7 +107,7 @@ user defined) flags.
 90%      6.9
 ```
 
-## Model Evalulation
+## Model Evaluation
 
 Model evaluation is super important, and this subcommand contains some common
 tools for understanding your model.
@@ -168,11 +171,11 @@ class   tpr     fpr
 
 XGBoost is built in to `st`. A simple workflow with the iris dataset is below.
 XGBoost is usually the first model I start with when analyzing a dataset. Even
-if XGBoost isn't the final model i'll be using in production, it is super easy
-to train and most of all... interpret (well trees in general).
+if XGBoost isn't the final model I'll be using in production, it is super easy
+to train and most of all, interpret (well trees in general).
 
 We're going to perform a binary prediction, however, there are three classes in
-this set. So we need to ensure we're using a multiclass predictive objective.
+this set. So we need to ensure we're using a multi-class predictive objective.
 
 ```bash
 > cat tests/iris.csv |sed -e '1,1d' |tr -d '"' | awk -F',' '{print $5}' |sort |uniq
@@ -212,7 +215,7 @@ all default parameters. The -y flag indicates which column is to be used as the
 predictor value. After the model is trained and saved, we can use it on our
 test set.
 
-Traiming parameters can be tuned, such as eta and max depth. See `st xgboost
+Training parameters can be tuned, such as eta and max depth. See `st xgboost
 train --help` for more options.
 
 ```bash
@@ -260,7 +263,7 @@ cat README.md | st extract byte-histogram
 0,0,0,0,0,0,0,0,0,0,0.027048063825647013, ...
 ```
 
-Reducing the dimentionality of the data using the hash-trick is built in under
+Reducing the dimensionality of the data using the hash-trick is built in under
 the extract subcommand. Use the -F flag to set the delimiter.
 
 ```bash
