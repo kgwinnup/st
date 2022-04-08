@@ -54,8 +54,9 @@ FLAGS:
     -V, --version    Prints version information
 
 SUBCOMMANDS:
-    eval         evaluation metrics to score an output, confusion matrix, f1, recall, fpr
-    extract      various data transformations and feature generation tools
+    eval         evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all
+                 classes need to be 0..N
+    extract      data transformations and feature generation tools
     graph        very simple cli graphing
     help         Prints this message or the help of the given subcommand(s)
     quintiles    k-quintile from a single vector (default k = 5)
