@@ -873,7 +873,7 @@ fn main() {
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
-                if index < length - 2 {
+                if index < length - 1 {
                     output.push_str(&format!("{},", b));
                 } else {
                     output.push_str(&format!("{}", b));
