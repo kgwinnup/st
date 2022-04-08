@@ -1,11 +1,113 @@
+use itertools::Itertools;
 use murmur3::murmur3_32;
-use st_stat;
+use st_core;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use xgboost::{parameters, Booster, DMatrix};
+
+pub fn print_line(input: &[f64]) {
+    let config = rasciigraph::Config::default()
+        .with_height(20)
+        .with_width(70)
+        .with_offset(0);
+    let plot = rasciigraph::plot(input.to_vec(), config);
+    println!("{}", plot);
+}
+
+pub fn print_histo(input: &mut [f64], prec: u32) {
+    let mut histo: HashMap<u32, u32> = HashMap::new();
+
+    for val in input.iter() {
+        let temp = val * (prec as f64);
+        *histo.entry(temp as u32).or_insert(1) += 1;
+    }
+
+    let mut new_vec = vec![];
+
+    let keys = histo.keys().sorted();
+    for k in keys {
+        if let Some(v) = histo.get(k) {
+            new_vec.push(*v as f64);
+        }
+    }
+
+    let config = rasciigraph::Config::default()
+        .with_height(20)
+        .with_width(70)
+        .with_offset(0);
+    let plot = rasciigraph::plot(new_vec, config);
+    println!("{}", plot);
+}
+
+pub fn print_summary(input: &mut [f64], prec: u32) {
+    let (sd, var, mean) = st_core::stdev_var_mean(input);
+    let m = st_core::mode(input, prec);
+    let med = st_core::median(input);
+    let min = input[0];
+    let max = input[input.len() - 1];
+
+    println!(
+        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
+        "n", "min", "max", "mean", "median", "mode", "sd", "var"
+    );
+    println!(
+        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
+        input.len(),
+        min as f32,
+        max as f32,
+        mean as f32,
+        med as f32,
+        m as f32,
+        sd as f32,
+        var as f32
+    );
+}
+
+pub fn print_summary_t(input: &mut [f64], prec: u32) {
+    let (sd, var, mean) = st_core::stdev_var_mean(input);
+    let m = st_core::mode(input, prec);
+    let med = st_core::median(input);
+    let min = input[0];
+    let max = input[input.len() - 1];
+
+    println!("{:<8}{}", "N", input.len());
+    println!("{:<8}{}", "min", min as f32);
+    println!("{:<8}{}", "max", max as f32);
+    println!("{:<8}{}", "mean", mean as f32);
+    println!("{:<8}{}", "med", med as f32);
+    println!("{:<8}{}", "mode", m as f32);
+    println!("{:<8}{}", "stdev", sd as f32);
+    println!("{:<8}{}", "var", var as f32);
+}
+
+pub fn print_quintiles(input: &mut [f64], k: u32) {
+    if input.len() < (k as usize) {
+        eprintln!(
+            "insufficient data for {} quintiles, data has only {} rows",
+            k,
+            input.len()
+        );
+        return;
+    }
+
+    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let mut ks = vec![];
+    let size = input.len() / (k as usize);
+
+    for i in 1..k {
+        ks.push(input[(i as usize) * size] as f32);
+    }
+
+    for i in 0..k - 1 {
+        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
+        let perc_format = format!("{}%", (perc * 100.0) as u32);
+        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
+    }
+}
 
 fn to_xgboost_dataset(xdata: &Vec<Vec<f64>>, ydata: Option<Vec<f32>>) -> DMatrix {
     let rows = xdata.len();
@@ -46,6 +148,12 @@ struct Opt {
 enum ExtractOptions {
     #[structopt(about = "create a normalized byte histogram of the input")]
     ByteHistogram {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(about = "calculate the bits of entropy of the input")]
+    Entropy {
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
     },
@@ -189,21 +297,6 @@ enum Command {
     Graph {
         #[structopt(short)]
         typ: String,
-
-        #[structopt(short = "h", long = "with-header")]
-        with_header: bool,
-
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
-    #[structopt(about = "sample a vector, with or without replacement")]
-    Sample {
-        #[structopt(short)]
-        size: u32,
-
-        #[structopt(short = "r", help = "sample with replacement")]
-        replace: bool,
 
         #[structopt(short = "h", long = "with-header")]
         with_header: bool,
@@ -421,28 +514,18 @@ fn main() {
     let opt = Opt::from_args();
 
     match opt.cmd {
-        Command::Sample {
-            size,
-            replace,
-            with_header,
-            input,
-        } => {
-            let raw_inputs = st_input::get_input(input);
-            st_stat::sample(&raw_inputs, with_header, size, replace);
-        }
-
         Command::Summary {
             transpose,
             precision,
             with_header,
             input,
         } => {
-            let raw_inputs = st_input::get_input(input);
-            let mut data = st_input::to_vector(&raw_inputs, with_header);
+            let raw_inputs = st_core::get_input(input);
+            let mut data = st_core::to_vector(&raw_inputs, with_header);
             if transpose {
-                st_stat::print_summary_t(&mut data, precision)
+                print_summary_t(&mut data, precision)
             } else {
-                st_stat::print_summary(&mut data, precision)
+                print_summary(&mut data, precision)
             }
         }
 
@@ -451,9 +534,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_input::get_input(input);
-            let mut data = st_input::to_vector(&raw_inputs, with_header);
-            st_stat::print_quintiles(&mut data, quintiles);
+            let raw_inputs = st_core::get_input(input);
+            let mut data = st_core::to_vector(&raw_inputs, with_header);
+            print_quintiles(&mut data, quintiles);
         }
 
         Command::Graph {
@@ -461,14 +544,14 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_input::get_input(input);
-            let mut data = st_input::to_vector(&raw_inputs, with_header);
+            let raw_inputs = st_core::get_input(input);
+            let mut data = st_core::to_vector(&raw_inputs, with_header);
             let name = typ.to_lowercase();
 
             if name.starts_with("line") {
-                st_stat::print_line(&data);
+                print_line(&data);
             } else if name.starts_with("histo") {
-                st_stat::print_histo(&mut data, 1);
+                print_histo(&mut data, 1);
             } else {
                 eprintln!("invalid graph type");
                 std::process::exit(1);
@@ -483,11 +566,11 @@ fn main() {
             base,
             input,
         } => {
-            let raw_inputs = st_input::get_input(input);
-            let tuples = st_input::to_tuple(&raw_inputs);
+            let raw_inputs = st_core::get_input(input);
+            let tuples = st_core::to_tuple(&raw_inputs);
 
             let bases: Vec<f32> = if let Some(s) = base {
-                match st_input::str_to_vector(&s, ",") {
+                match st_core::str_to_vector(&s, ",") {
                     Ok(xs) => xs,
                     Err(_) => {
                         eprintln!("error parsing -b list");
@@ -657,8 +740,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let raw_inputs = st_input::get_input(input);
-            let (xdata, ydata) = st_input::to_matrix(&raw_inputs, ycol, with_header);
+            let raw_inputs = st_core::get_input(input);
+            let (xdata, ydata) = st_core::to_matrix(&raw_inputs, ycol, with_header);
 
             let training_set = to_xgboost_dataset(&xdata, Some(ydata));
 
@@ -711,8 +794,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let inputs = st_input::get_input(input);
-            let (xdata, ydata) = st_input::to_matrix(&inputs, ycol, with_header);
+            let inputs = st_core::get_input(input);
+            let (xdata, ydata) = st_core::to_matrix(&inputs, ycol, with_header);
             let test_set = to_xgboost_dataset(&xdata, None);
 
             let bst = Booster::load(model).unwrap();
@@ -781,8 +864,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::ByteHistogram { input }) => {
-            let input = st_input::get_input_bytes(input);
-            let histo = st_input::to_byte_histogram(&input);
+            let input = st_core::get_input_bytes(input);
+            let histo = st_core::to_byte_histogram(&input);
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
@@ -796,13 +879,19 @@ fn main() {
             println!("{}", output);
         }
 
+        Command::Extract(ExtractOptions::Entropy { input }) => {
+            let input = st_core::get_input_bytes(input);
+            let en = st_core::entropy(&input);
+            println!("{}", en);
+        }
+
         Command::Extract(ExtractOptions::HashTrick {
             kbuckets,
             binary,
             delimiter,
             input,
         }) => {
-            let s = st_input::get_input(input);
+            let s = st_core::get_input(input);
             let mut buckets_out: Vec<u32> = Vec::with_capacity(kbuckets);
             for _ in 0..(kbuckets - 1) {
                 buckets_out.push(0);
