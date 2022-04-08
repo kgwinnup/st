@@ -123,6 +123,73 @@ pub fn confusion_matrix(tuples: Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<
     matrix
 }
 
+pub struct CMatrixStats {
+    pub label: usize,
+    pub fpr: f32,
+    pub tpr: f32,
+    pub fnr: f32,
+    pub tnr: f32,
+}
+
+pub fn confusion_matrix_stats(matrix: &Vec<Vec<u32>>) -> Vec<CMatrixStats> {
+    let size = matrix.len();
+
+    let mut counts = HashMap::new();
+    for i in 0..size {
+        // TP FN FP TN
+        counts.insert(i, vec![0.0, 0.0, 0.0, 0.0]);
+    }
+
+    let mut total = 0.0;
+
+    for i in 0..size {
+        let mut fn_i = 0.0;
+
+        for j in 0..size {
+            // total the entire matrix
+            total += matrix[i][j] as f32;
+
+            // TP
+            if i == j {
+                let data = counts.get_mut(&i).unwrap();
+                data[0] = matrix[i][j] as f32;
+                continue;
+            }
+
+            let data = counts.get_mut(&i).unwrap();
+            // FP
+            data[2] += matrix[j][i] as f32;
+
+            // FN
+            fn_i += matrix[i][j] as f32;
+        }
+
+        let data = counts.get_mut(&i).unwrap();
+        // FN
+        data[1] = fn_i;
+    }
+
+    let mut stats = vec![];
+
+    for k in 0..size {
+        let v = counts.get_mut(&k).unwrap();
+        // TN
+        v[3] = total - v[0] - v[1] - v[2];
+
+        stats.push(CMatrixStats {
+            label: k,
+            fpr: v[2] / (v[2] + v[3]),
+            tpr: v[0] / (v[0] + v[1]),
+            fnr: v[1] / (v[1] + v[0]),
+            tnr: v[3] / (v[3] + v[1]),
+        })
+    }
+
+    stats.sort_by(|a, b| a.label.cmp(&b.label));
+
+    stats
+}
+
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
 /// read input from stdin. A new String is returned with the contents.
 pub fn get_input(input: Option<PathBuf>) -> String {

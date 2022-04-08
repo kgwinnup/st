@@ -586,6 +586,8 @@ fn main() {
             };
 
             let matrix = st_core::confusion_matrix(tuples, threshold);
+            let stats = st_core::confusion_matrix_stats(&matrix);
+
             let size = matrix.len();
 
             // convert the matrix into a formatted string for stdout
@@ -609,61 +611,19 @@ fn main() {
             println!("{}", header);
             println!("{}", body);
 
-            let mut counts = HashMap::new();
-            for i in 0..size {
-                // TP FN FP TN
-                counts.insert(i, vec![0.0, 0.0, 0.0, 0.0]);
-            }
-
-            let mut total = 0.0;
-
-            for i in 0..size {
-                let mut fn_i = 0.0;
-
-                for j in 0..size {
-                    // total the entire matrix
-                    total += matrix[i][j] as f32;
-
-                    // TP
-                    if i == j {
-                        let data = counts.get_mut(&i).unwrap();
-                        data[0] = matrix[i][j] as f32;
-                        continue;
-                    }
-
-                    let data = counts.get_mut(&i).unwrap();
-                    // FP
-                    data[2] += matrix[j][i] as f32;
-
-                    // FN
-                    fn_i += matrix[i][j] as f32;
-                }
-
-                let data = counts.get_mut(&i).unwrap();
-                // FN
-                data[1] = fn_i;
-            }
-
-            let mut base_calc_str = String::new();
+            let mut bayes_calc_str = String::new();
             let mut verbose_str = String::new();
+
             verbose_str.push_str(&format!(
                 "{:<8}{:<8}{:<8}{:<8}{:<8}\n",
                 "class", "tpr", "fpr", "tnr", "fnr"
             ));
 
-            for k in 0..size {
-                let v = counts.get_mut(&k).unwrap();
-                // TN
-                v[3] = total - v[0] - v[1] - v[2];
-                let fpr = v[2] / (v[2] + v[3]);
-                let tpr = v[0] / (v[0] + v[1]);
-                let fnr = v[1] / (v[1] + v[0]);
-                let tnr = v[3] / (v[3] + v[1]);
-
+            for stat in stats {
                 if verbose {
                     verbose_str.push_str(&format!(
                         "{:<8}{:<8.3}{:<8.3}{:<8.3}{:<8.3}\n",
-                        k, tpr, fpr, tnr, fnr
+                        stat.label, stat.tpr, stat.fpr, stat.tnr, stat.fnr
                     ));
                 }
 
@@ -675,10 +635,15 @@ fn main() {
                         std::process::exit(1);
                     }
 
-                    let temp = (tpr * bases[k]) + (fpr * (1.0 - bases[k]));
-                    let val = (tpr * bases[k]) / temp;
-                    base_calc_str
-                        .push_str(&format!("{}: Pr(class_{} | positive) = {}\n", k, k, val));
+                    let prob_positive =
+                        (stat.tpr * bases[stat.label]) + (stat.fpr * (1.0 - bases[stat.label]));
+
+                    let prob_class_given_positive = (stat.tpr * bases[stat.label]) / prob_positive;
+
+                    bayes_calc_str.push_str(&format!(
+                        "{}: Pr(class_{} | positive) = {}\n",
+                        stat.label, stat.label, prob_class_given_positive
+                    ));
                 }
             }
 
@@ -688,7 +653,7 @@ fn main() {
 
             if !bases.is_empty() {
                 println!("");
-                print!("{}", base_calc_str);
+                print!("{}", bayes_calc_str);
             }
         }
 
