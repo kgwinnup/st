@@ -80,7 +80,13 @@ pub fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
 /// read input from stdin. A new String is returned with the contents.
 pub fn get_input(input: Option<PathBuf>) -> String {
     if let Some(path) = input {
-        std::fs::read_to_string(path).unwrap()
+        match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
     } else {
         let mut input = String::new();
         let stdin = std::io::stdin();
@@ -97,7 +103,13 @@ pub fn get_input(input: Option<PathBuf>) -> String {
 
 pub fn get_input_bytes(input: Option<PathBuf>) -> Vec<u8> {
     if let Some(path) = input {
-        std::fs::read(path).unwrap()
+        match std::fs::read(path) {
+            Ok(bs) => bs,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
     } else {
         let mut stdin = std::io::stdin();
         let mut buf = vec![];
