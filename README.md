@@ -180,6 +180,39 @@ class   tpr     fpr     tnr     fnr
 1: Pr(class_1 | positive) = 0.291144
 ```
 
+Another useful display I reference a lot is dumping a table of model
+metrics for each threshold (if binary prediction). For this the
+expected input is a list of tuples of `prediction, actual` where
+prediction is a range (0,1).
+
+```bash
+> st eval --table results.csv
+-       1       0
+1       57492   2465
+0       2508    57535
+
+t       prec    f1      recall  fpr
+0.05    0.7785  0.9975  0.8745  0.2837
+0.10    0.8343  0.9944  0.9074  0.1974
+0.15    0.8688  0.9910  0.9259  0.1497
+0.20    0.8922  0.9876  0.9375  0.1193
+0.25    0.9087  0.9843  0.9449  0.0989
+0.30    0.9215  0.9797  0.9498  0.0834
+0.35    0.9330  0.9748  0.9534  0.0701
+0.40    0.9429  0.9695  0.9560  0.0587
+0.45    0.9516  0.9641  0.9578  0.0491
+0.50    0.9589  0.9582  0.9585  0.0411
+0.55    0.9653  0.9521  0.9587  0.0342
+0.60    0.9714  0.9442  0.9576  0.0278
+0.65    0.9760  0.9355  0.9553  0.0230
+0.70    0.9808  0.9246  0.9519  0.0181
+0.75    0.9852  0.9108  0.9465  0.0137
+0.80    0.9898  0.8916  0.9381  0.0092
+0.85    0.9935  0.8628  0.9235  0.0057
+0.90    0.9962  0.8167  0.8976  0.0032
+0.95    0.9985  0.7174  0.8349  0.0011
+```
+
 ## XGBoost
 
 XGBoost is built in to `st`. A simple workflow with the iris dataset is below.

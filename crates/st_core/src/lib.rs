@@ -192,7 +192,7 @@ pub fn confusion_matrix_stats(matrix: &Vec<Vec<u32>>) -> Vec<CMatrixStats> {
 
 pub fn threshold_table_stats(tuples: &Vec<(f32, f32)>) -> Vec<Vec<f32>> {
     let mut out = vec![];
-    let mut t = 0.0;
+    let mut t = 0.05;
 
     loop {
         if t > 1.0 {
@@ -232,6 +232,7 @@ pub fn threshold_table_stats(tuples: &Vec<(f32, f32)>) -> Vec<Vec<f32>> {
         let fpr = tfp / (tfp + ttn);
 
         out.push(vec![t, precision, recall, f1, fpr]);
+
         t += 0.05;
     }
 
