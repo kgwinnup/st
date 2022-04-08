@@ -14,11 +14,11 @@ project.
 1. [Installing](#installing)
 2. [Usage](#usage)
 3. [Summary statistics](#summary-statistics)
-4. [Graphing](#graphing)
-5. [K-Quintiles](#k-quintiles)
+4. [K-Quintiles](#k-quintiles)
+5. [Model Evaluation](#model-evaluation)
 6. [XGBoost](#xgboost)
-7. [Model Evaluation](#model-evaluation)
-8. [Extract Features](#extract-features)
+7. [Extract Features](#extract-features)
+8. [Graphing](#graphing)
 
 # Installing
 
@@ -86,58 +86,6 @@ stdev   0.8253013
 var     0.68112224
 ```
 
-## Graphing
-
-Quick histogram and line plots.
-
-```
-> cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t histo
- 62.00 ┤                      ╭──╮
- 59.60 ┤                     ╭╯  ╰───────╮
- 57.20 ┤                   ╭─╯           ╰───────╮
- 54.80 ┤                  ╭╯                     ╰────╮
- 52.40 ┤                ╭─╯                           ╰╮
- 50.00 ┤               ╭╯                              ╰─╮
- 47.60 ┤              ╭╯                                 ╰╮
- 45.20 ┤            ╭─╯                                   ╰╮
- 42.80 ┤           ╭╯                                      ╰─╮
- 40.40 ┤         ╭─╯                                         ╰╮
- 38.00 ┤        ╭╯                                            ╰╮
- 35.60 ┤      ╭─╯                                              ╰─╮
- 33.20 ┤     ╭╯                                                  ╰╮
- 30.80 ┤    ╭╯                                                    ╰─╮
- 28.40 ┤  ╭─╯                                                       ╰╮
- 26.00 ┤ ╭╯                                                          ╰╮
- 23.60 ┼─╯                                                            ╰─╮
- 21.20 ┤                                                                ╰╮
- 18.80 ┤                                                                 ╰╮
- 16.40 ┤                                                                  ╰─╮
- 14.00 ┤                                                                    ╰
-
-cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t line
- 7.31 ┤                                                           ╭╮
- 7.16 ┤                                                     ╭╮    ││
- 7.01 ┤                                                     ││    ││
- 6.86 ┤                       ╭╮                            ││  ╭╮│╰╮
- 6.71 ┤                       ││         ╭╮             ╭╮  ││  │││ │  ╭╮╭╮
- 6.57 ┤                       ││         ││   ╭╮        ││  ││  │││ │  ││││
- 6.42 ┤                       │╰╮   ╭╮   ││   ││     ╭─╮│╰─╮│╰╮ │││ │  │││╰╮
- 6.27 ┤                      ╭╯ │   ││  ╭╯│   ││     │ ││  ││ │╭╯╰╯ │╭╮│╰╯ │
- 6.12 ┤                      │  ╰─╮╭╯│ ╭╯ ╰╮  ││     │ ││  ╰╯ ││    ╰╯╰╯   │
- 5.97 ┤                      │    ││ │ │   │  ││╭╮ ╭╮│ ││     ││           │
- 5.82 ┤                      │    ││ ╰╮│   │╭╮││││ │╰╯ ││     ││           ╰
- 5.67 ┤      ╭╮              │    ││  ╰╯   │││││││╭╯   ││     ╰╯
- 5.52 ┤      ││              │    ││       ╰╯╰╯╰╯││    ││
- 5.37 ┤      ││      ╭╮      │    ╰╯             ││    ╰╯
- 5.22 ┤      │╰─╮  ╭╮││      │                   ││
- 5.07 ┼╮╭╮   │  │  ││││╭╮ ╭╮ │                   ╰╯
- 4.92 ┤│││ ╭╮│  │╭─╯╰╯╰╯╰╮│╰─╯
- 4.77 ┤││╰─╯││  ╰╯       ││
- 4.62 ┤╰╯   ││           ││
- 4.47 ┤     ││           ╰╯
- 4.32 ┤     ╰╯
-```
-
 ## k-quintiles
 
 Simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is
@@ -155,6 +103,30 @@ user defined) flags.
 80%      6.6
 90%      6.9
 ```
+
+## Model Evalulation
+
+Model evaluation is super important, and this subcommand contains some common
+tools for understanding your model.
+
+Note: All classes are assumed to labeled 0..N. This starting at 0 and growing
+up is assumed in all the calculations within this section. Ensure your data is
+in this format or face the panics.
+
+Additionally, all data passed into this subcommand is expected to be a list of
+line separated tuples of the form `predicted, actual`. Again `actual` must be
+0..N. Predicted in this case is an int or a (0,1) value. In the case of a (0,1)
+range, this is rounded at 0.5 up or down to the nearest int. To specify the
+threshold use the `-t` flag.
+
+```bash
+st eval iris_results.csv
+-       0       1       2
+0       7       1       0
+1       0       9       0
+2       0       0       8
+```
+
 
 ## XGBoost
 
@@ -241,26 +213,6 @@ f1 = 0.011651897
 f0 = 0.004981032
 ```
 
-## Model Evalulation
-
-Looking at a confusion matrix for binary or multiclass prediction is helpful.
-If you pass results in the format `prediction, actual` a confusion matrix will
-be printed.
-
-For binary classification, the `prediction` can be a interval (0,1), by default
-0.5 is used as the threshold for the predicted class. Passing in the `-t` flag
-lets you specify a custom threshold.
-
-```bash
-> st xgboost predict -m iris.model tests/iris_test.csv | awk -F',' '{print $1 "," $6}' > iris_results.csv
-
-> cat iris_results.csv | st eval
-        2       1       0
-2       7       1       0
-1       0       9       0
-0       0       0       8
-```
-
 ## Extract Features
 
 Frequently, a normalized byte histogram is desired from some input. This will
@@ -278,6 +230,58 @@ the extract subcommand. Use the -F flag to set the delimiter.
 ```bash
 > echo 'foo,bar,baz,raw,norm,etc' | st extract hash-trick -k 10 -b
 0,0,1,1,0,0,1,1,0
+```
+
+## Graphing
+
+Quick histogram and line plots.
+
+```
+> cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t histo
+ 62.00 ┤                      ╭──╮
+ 59.60 ┤                     ╭╯  ╰───────╮
+ 57.20 ┤                   ╭─╯           ╰───────╮
+ 54.80 ┤                  ╭╯                     ╰────╮
+ 52.40 ┤                ╭─╯                           ╰╮
+ 50.00 ┤               ╭╯                              ╰─╮
+ 47.60 ┤              ╭╯                                 ╰╮
+ 45.20 ┤            ╭─╯                                   ╰╮
+ 42.80 ┤           ╭╯                                      ╰─╮
+ 40.40 ┤         ╭─╯                                         ╰╮
+ 38.00 ┤        ╭╯                                            ╰╮
+ 35.60 ┤      ╭─╯                                              ╰─╮
+ 33.20 ┤     ╭╯                                                  ╰╮
+ 30.80 ┤    ╭╯                                                    ╰─╮
+ 28.40 ┤  ╭─╯                                                       ╰╮
+ 26.00 ┤ ╭╯                                                          ╰╮
+ 23.60 ┼─╯                                                            ╰─╮
+ 21.20 ┤                                                                ╰╮
+ 18.80 ┤                                                                 ╰╮
+ 16.40 ┤                                                                  ╰─╮
+ 14.00 ┤                                                                    ╰
+
+cat tests/iris.csv | awk -F',' '{print $1}' |st graph -h -t line
+ 7.31 ┤                                                           ╭╮
+ 7.16 ┤                                                     ╭╮    ││
+ 7.01 ┤                                                     ││    ││
+ 6.86 ┤                       ╭╮                            ││  ╭╮│╰╮
+ 6.71 ┤                       ││         ╭╮             ╭╮  ││  │││ │  ╭╮╭╮
+ 6.57 ┤                       ││         ││   ╭╮        ││  ││  │││ │  ││││
+ 6.42 ┤                       │╰╮   ╭╮   ││   ││     ╭─╮│╰─╮│╰╮ │││ │  │││╰╮
+ 6.27 ┤                      ╭╯ │   ││  ╭╯│   ││     │ ││  ││ │╭╯╰╯ │╭╮│╰╯ │
+ 6.12 ┤                      │  ╰─╮╭╯│ ╭╯ ╰╮  ││     │ ││  ╰╯ ││    ╰╯╰╯   │
+ 5.97 ┤                      │    ││ │ │   │  ││╭╮ ╭╮│ ││     ││           │
+ 5.82 ┤                      │    ││ ╰╮│   │╭╮││││ │╰╯ ││     ││           ╰
+ 5.67 ┤      ╭╮              │    ││  ╰╯   │││││││╭╯   ││     ╰╯
+ 5.52 ┤      ││              │    ││       ╰╯╰╯╰╯││    ││
+ 5.37 ┤      ││      ╭╮      │    ╰╯             ││    ╰╯
+ 5.22 ┤      │╰─╮  ╭╮││      │                   ││
+ 5.07 ┼╮╭╮   │  │  ││││╭╮ ╭╮ │                   ╰╯
+ 4.92 ┤│││ ╭╮│  │╭─╯╰╯╰╯╰╮│╰─╯
+ 4.77 ┤││╰─╯││  ╰╯       ││
+ 4.62 ┤╰╯   ││           ││
+ 4.47 ┤     ││           ╰╯
+ 4.32 ┤     ╰╯
 ```
 
 

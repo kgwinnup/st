@@ -232,10 +232,9 @@ enum Command {
         #[structopt(
             short,
             long,
-            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'",
-            default_value = ""
+            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
         )]
-        base: String,
+        base: Option<String>,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -487,12 +486,16 @@ fn main() {
             let raw_inputs = st_input::get_input(input);
             let tuples = st_input::to_tuple(&raw_inputs);
 
-            let bases: Vec<f32> = match st_input::str_to_vector(&base, ",") {
-                Ok(xs) => xs,
-                Err(_) => {
-                    eprintln!("error parsing -b list");
-                    std::process::exit(1);
+            let bases: Vec<f32> = if let Some(s) = base {
+                match st_input::str_to_vector(&s, ",") {
+                    Ok(xs) => xs,
+                    Err(_) => {
+                        eprintln!("error parsing -b list");
+                        std::process::exit(1);
+                    }
                 }
+            } else {
+                vec![]
             };
 
             let mut classes = HashMap::new();
@@ -503,11 +506,10 @@ fn main() {
             }
 
             let size = classes.keys().len();
-            let mut indexes = vec![];
             let mut matrix = vec![];
 
-            for k in classes.keys().into_iter() {
-                indexes.push(k);
+            // create the confusion matrix
+            for _ in 0..size {
                 let mut row = vec![];
                 for _ in 0..size {
                     row.push(0);
@@ -515,8 +517,9 @@ fn main() {
                 matrix.push(row);
             }
 
-            for (p, a) in &tuples {
-                let val = if let Some(t) = threshold {
+            // intended to use only with binary (0,1) ranges. Not softprob (yet).
+            for (p, actual_class_col) in &tuples {
+                let predicted_class_row = if let Some(t) = threshold {
                     (*p + (1.0 - t)) as usize
                 } else if size == 2 {
                     (*p + 0.5) as usize
@@ -524,7 +527,7 @@ fn main() {
                     *p as usize
                 };
 
-                matrix[val][*a as usize] += 1;
+                matrix[predicted_class_row][*actual_class_col as usize] += 1;
             }
 
             let mut body = String::new();
@@ -545,9 +548,9 @@ fn main() {
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
-                header.push_str(&format!("{:<8}", i));
+                header.push_str(&format!("{:<8}", size - 1 - i));
 
-                body.push_str(&format!("{:<8}", i));
+                body.push_str(&format!("{:<8}", size - 1 - i));
 
                 for j in 0..size {
                     body.push_str(&format!("{:<8}", matrix[i][j]));
@@ -596,8 +599,9 @@ fn main() {
             }
 
             let mut base_calc_str = String::new();
+            let mut verbose_str = String::new();
+            verbose_str.push_str(&format!("{:<8}{:<8}{:<8}\n", "class", "tpr", "fpr"));
 
-            println!("{:<8}{:<8}{:<8}", "class", "tpr", "fpr");
             for k in 0..size {
                 let v = counts.get_mut(&k).unwrap();
                 // TN
@@ -606,8 +610,7 @@ fn main() {
                 let tpr = v[0] / (v[0] + v[1]);
 
                 if verbose {
-                    //println!("{}: TP={}, FN={}, FP={}, TN={}", k, v[0], v[1], v[2], v[3]);
-                    println!("{:<8}{:<8.3}{:<8.3}", k, tpr, fpr);
+                    verbose_str.push_str(&format!("{:<8}{:<8.3}{:<8.3}\n", k, tpr, fpr));
                 }
 
                 if !bases.is_empty() {
@@ -623,6 +626,10 @@ fn main() {
                     base_calc_str
                         .push_str(&format!("{}: Pr(class_{} | positive) = {}\n", k, k, val));
                 }
+            }
+
+            if verbose {
+                print!("{}", verbose_str);
             }
 
             if !bases.is_empty() {
