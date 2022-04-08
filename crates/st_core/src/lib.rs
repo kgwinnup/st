@@ -76,6 +76,53 @@ pub fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
     )
 }
 
+pub fn confusion_matrix(tuples: Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<Vec<u32>> {
+    let mut classes = HashMap::new();
+
+    for (_, c) in &tuples {
+        // f32 is not hashable, convert to string
+        classes.insert(format!("{}", c), 1);
+    }
+
+    let size = classes.keys().len();
+    let mut matrix = vec![];
+
+    // create the confusion matrix
+    for _ in 0..size {
+        let mut row = vec![];
+        for _ in 0..size {
+            row.push(0);
+        }
+        matrix.push(row);
+    }
+
+    // intended to use only with binary (0,1) ranges. Not softprob (yet).
+    for (p, actual_class_col) in &tuples {
+        let predicted_class_row = if let Some(t) = threshold {
+            (*p + (1.0 - t)) as usize
+        } else if size == 2 {
+            (*p + 0.5) as usize
+        } else {
+            *p as usize
+        };
+
+        matrix[predicted_class_row][*actual_class_col as usize] += 1;
+    }
+
+    // reverse each row so they are in descending order
+    // after this the matrix is in descending order from top/left to bottom/right
+    // the purpose for ordering this way is for a binary prediction this defautt layout
+    // matches a confusion matrix
+    // TP FP
+    // FN TN
+    for i in 0..size {
+        matrix[i].reverse();
+    }
+    matrix.reverse();
+
+    matrix
+}
+
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
 /// read input from stdin. A new String is returned with the contents.
 pub fn get_input(input: Option<PathBuf>) -> String {

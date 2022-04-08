@@ -585,53 +585,12 @@ fn main() {
                 vec![]
             };
 
-            let mut classes = HashMap::new();
-
-            for (_, c) in &tuples {
-                // f32 is not hashable, convert to string
-                classes.insert(format!("{}", c), 1);
-            }
-
-            let size = classes.keys().len();
-            let mut matrix = vec![];
-
-            // create the confusion matrix
-            for _ in 0..size {
-                let mut row = vec![];
-                for _ in 0..size {
-                    row.push(0);
-                }
-                matrix.push(row);
-            }
-
-            // intended to use only with binary (0,1) ranges. Not softprob (yet).
-            for (p, actual_class_col) in &tuples {
-                let predicted_class_row = if let Some(t) = threshold {
-                    (*p + (1.0 - t)) as usize
-                } else if size == 2 {
-                    (*p + 0.5) as usize
-                } else {
-                    *p as usize
-                };
-
-                matrix[predicted_class_row][*actual_class_col as usize] += 1;
-            }
-
-            let mut body = String::new();
-            let mut header = String::new();
-
-            // reverse each row so they are in descending order
-            // after this the matrix is in descending order from top/left to bottom/right
-            // the purpose for ordering this way is for a binary prediction this defautt layout
-            // matches a confusion matrix
-            // TP FP
-            // FN TN
-            for i in 0..size {
-                matrix[i].reverse();
-            }
-            matrix.reverse();
+            let matrix = st_core::confusion_matrix(tuples, threshold);
+            let size = matrix.len();
 
             // convert the matrix into a formatted string for stdout
+            let mut header = String::new();
+            let mut body = String::new();
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
