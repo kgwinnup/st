@@ -127,6 +127,42 @@ st eval iris_results.csv
 2       0       0       8
 ```
 
+There is a `-v` flag which will provide the TPR and FPR rates for each class.
+
+```bash
+st eval -v iris_results.csv
+-       2       1       0
+2       7       1       0
+1       0       9       0
+0       0       0       8
+
+class   tpr     fpr
+0       0.875   0.000
+1       1.000   0.062
+2       1.000   0.000
+```
+
+For binary and softprob objective functions. There is also a Bayes estimator of
+the models effective performance. This requires passing in a list of base rates
+of occurrence for a specific class. The length of the list much match the number
+of classes. 
+
+In the example below, the base rate occurrence of the predictor is very low in
+the real population, Bayes is very helpful here.
+
+```bash
+st eval -v -b '0.99,0.01' results.csv
+-       1       0
+1       313     7
+0       42      338
+
+class   tpr     fpr
+0       0.978   0.111
+1       0.889   0.022
+
+0: Pr(class_0 | positive) = 0.99885994
+1: Pr(class_1 | positive) = 0.291144
+```
 
 ## XGBoost
 
