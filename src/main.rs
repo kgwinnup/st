@@ -216,7 +216,7 @@ enum Command {
     Xgboost(TreeOptions),
 
     #[structopt(
-        about = "evaluation metrics to score an output, confusion matrix, f1, recall, fpr"
+        about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
     )]
     Eval {
         #[structopt(
@@ -232,7 +232,7 @@ enum Command {
         #[structopt(
             short,
             long,
-            help = "Estimate for true rate of occurance in the real world. Estimates Pr(<class> | positive prediction). Put multiple values in a string e.g. -b '0.1,0.2,0.3'",
+            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'",
             default_value = ""
         )]
         base: String,
@@ -487,19 +487,13 @@ fn main() {
             let raw_inputs = st_input::get_input(input);
             let tuples = st_input::to_tuple(&raw_inputs);
 
-            let mut bases = vec![];
-            for i in base.split(",").into_iter() {
-                match i.parse::<f32>() {
-                    Ok(f) => {
-                        bases.push(f);
-                    }
-
-                    Err(_) => {
-                        eprintln!("invalid float in --base flag");
-                        std::process::exit(1);
-                    }
+            let bases: Vec<f32> = match st_input::str_to_vector(&base, ",") {
+                Ok(xs) => xs,
+                Err(_) => {
+                    eprintln!("error parsing -b list");
+                    std::process::exit(1);
                 }
-            }
+            };
 
             let mut classes = HashMap::new();
 
@@ -604,7 +598,8 @@ fn main() {
             let mut base_calc_str = String::new();
 
             println!("{:<8}{:<8}{:<8}", "class", "tpr", "fpr");
-            for (k, mut v) in counts {
+            for k in 0..size {
+                let v = counts.get_mut(&k).unwrap();
                 // TN
                 v[3] = total - v[0] - v[1] - v[2];
                 let fpr = v[2] / (v[2] + v[3]);
