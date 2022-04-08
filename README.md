@@ -28,13 +28,15 @@ project.
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
 ```
-sudo apt-get install llvm-dev libclang-dev clang
-cargo build --release
+> # install rustup toolchain
+> sudo apt-get install llvm-dev libclang-dev clang
+> cargo build --release
 ```
 
 Or install it to the cargo bin directory (make sure it is in your $PATH).
 
 ```
+> # install rustup toolchain
 sudo apt-get install llvm-dev libclang-dev clang
 cargo install --path .
 ```
@@ -71,7 +73,7 @@ flags, or options.
 ## Summary statistics
 
 ```
-cat tests/iris.csv | awk -F',' '{print $1}' |st summary -h
+> cat tests/iris.csv | awk -F',' '{print $1}' |st summary -h
 n          min        max        mean       median     mode       sd         var
 150        4.3        7.9        5.8433332  5.8        5          0.8253013  0.68112224
 ```
@@ -79,7 +81,7 @@ n          min        max        mean       median     mode       sd         var
 Or transpose the output.
 
 ```
-cat tests/iris.csv | awk -F',' '{print $1}' |st summary -ht
+> cat tests/iris.csv | awk -F',' '{print $1}' |st summary -ht
 N       150
 min     4.3
 max     7.9
@@ -124,7 +126,7 @@ range, this is rounded at 0.5 up or down to the nearest int. To specify the
 threshold use the `-t` flag.
 
 ```bash
-st eval iris_results.csv
+> st eval iris_results.csv
 -       0       1       2
 0       7       1       0
 1       0       9       0
@@ -134,7 +136,7 @@ st eval iris_results.csv
 There is a `-v` flag which will provide the TPR and FPR rates for each class.
 
 ```bash
-st eval -v iris_results.csv
+> st eval -v iris_results.csv
 -       2       1       0
 2       7       1       0
 1       0       9       0
@@ -157,7 +159,7 @@ question: if the model predicts class_N, what is the probability that the
 predicted input is of class_N.
 
 ```bash
-st eval -v -b '0.99,0.01' results.csv
+> st eval -v -b '0.99,0.01' results.csv
 -       1       0
 1       313     7
 0       42      338
@@ -195,7 +197,7 @@ final command shuffles the entire dataset and prepares it for the train/test
 split.
 
 ```bash
-cat tests/iris.csv |sed -e '1,1d' |tr -d '"' | sed -e 's/setosa/0/g' | sed -e 's/versicolor/1/g' | sed -e 's/virginica/2/g' | sort -R > tests/iris_normalized.csv
+> cat tests/iris.csv |sed -e '1,1d' |tr -d '"' | sed -e 's/setosa/0/g' | sed -e 's/versicolor/1/g' | sed -e 's/virginica/2/g' | sort -R > tests/iris_normalized.csv
 
 > head tests/iris_normalized.csv
 5.1,3.5,1.4,0.2,0
@@ -209,8 +211,8 @@ random, we can just take the first N lines for the test, and the remainder as
 the training set.
 
 ```bash
-head -n 25 tests/iris_normalized.csv > tests/iris_test.csv
-cat tests/iris_normalized.csv | sed -e '1,25d' > tests/iris_train.csv
+> head -n 25 tests/iris_normalized.csv > tests/iris_test.csv
+> cat tests/iris_normalized.csv | sed -e '1,25d' > tests/iris_train.csv
 ```
 
 Next, now that the data is cleaned, we can train the model with XGBoost using
@@ -262,7 +264,7 @@ output a 256 sized series to stdout, where each index is the decimal mapping
 for that specific byte.
 
 ```bash
-cat README.md | st extract byte-histogram
+> cat README.md | st extract byte-histogram
 0,0,0,0,0,0,0,0,0,0,0.027048063825647013, ...
 ```
 
@@ -272,6 +274,13 @@ the extract subcommand. Use the -F flag to set the delimiter.
 ```bash
 > echo 'foo,bar,baz,raw,norm,etc' | st extract hash-trick -k 10 -b
 0,0,1,1,0,0,1,1,0
+```
+
+Sometimes it is useful to use bit entropy as a feature.
+
+```bash
+> st extract entropy /bin/bash
+6.337345458355953
 ```
 
 ## Graphing
