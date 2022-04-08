@@ -27,18 +27,26 @@ project.
 
 Building locally requires the rust tool chain (https://rustup.rs/). 
 
+When using cargo to install, make sure ~/.cargo/bin is in your $PATH.
+
+## OS X
+
 ```
 > # install rustup toolchain
+
+> # haven't confirmed, I think you'll need
+> brew install libomp
+> cargo install --path .
+```
+
+## Debian (probably Ubuntu too)
+
+```
+> # install rustup toolchain
+
+# this is needed for xgboost
 > sudo apt-get install llvm-dev libclang-dev clang
-> cargo build --release
-```
-
-Or install it to the cargo bin directory (make sure it is in your $PATH).
-
-```
-> # install rustup toolchain
-sudo apt-get install llvm-dev libclang-dev clang
-cargo install --path .
+> cargo install --path .
 ```
 
 # Usage
