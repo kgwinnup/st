@@ -283,7 +283,11 @@ enum Command {
 
     #[structopt(about = "k-quintile from a single vector (default k = 5)")]
     Quintiles {
-        #[structopt(short, help = "k-quintile, for some input k", default_value = "5")]
+        #[structopt(
+            short = "k",
+            help = "k-quintile, for some input k",
+            default_value = "5"
+        )]
         quintiles: u32,
 
         #[structopt(short = "h", long = "with-header")]

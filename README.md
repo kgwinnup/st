@@ -98,7 +98,7 @@ Simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is
 user defined) flags.
 
 ```
-> cat tests/iris.csv | awk -F',' '{print $1}' |st quintiles -h -q 10
+> cat tests/iris.csv | awk -F',' '{print $1}' |st quintiles -h -k 10
 10%      4.8
 20%      5
 30%      5.3
