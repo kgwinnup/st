@@ -1,18 +1,12 @@
 
 # st
 
-`st` is a small tool for doing data science work at the command line. I spend a
-great deal of my time ssh'ing into various servers and often need to calculate
-simple statistics. Additionally, machine learning, at least exploration, can
-benefit from more command line tooling. 
+`st` is a small tool for doing data science work at the command
+line. One core goal is to adhere to Unix principles regarding
+input/output. This tool is intended for use in Unix pipelines.
 
-Largely, this is built off of my workflow, but I've tried to make it as useful
-generally as possible.
-
-One core goal with this project is to try and adhere to the Unix philosophy with
-regard to text files and piping data around. Additionally, we want to do those
-things quickly which is one of the reasons Rust is the language chosen for this
-project.
+I spend a lot of time at the command line doing DS work, and this tool
+largely replaces many of the simple scripts I used to use.
 
 1. [Installing](#installing)
 2. [Usage](#usage)
@@ -25,20 +19,28 @@ project.
 
 # Installing
 
-Building locally requires the rust tool chain (https://rustup.rs/). 
+Building locally requires the rust tool chain (https://rustup.rs/).
+
+When using cargo to install, make sure ~/.cargo/bin is in your $PATH.
+
+## OS X
 
 ```
 > # install rustup toolchain
+
+> # haven't confirmed, I think you'll need
+> brew install libomp
+> cargo install --path .
+```
+
+## Debian (probably Ubuntu too)
+
+```
+> # install rustup toolchain
+
+# this is needed for xgboost
 > sudo apt-get install llvm-dev libclang-dev clang
-> cargo build --release
-```
-
-Or install it to the cargo bin directory (make sure it is in your $PATH).
-
-```
-> # install rustup toolchain
-sudo apt-get install llvm-dev libclang-dev clang
-cargo install --path .
+> cargo install --path .
 ```
 
 # Usage
@@ -67,8 +69,8 @@ SUBCOMMANDS:
     xgboost      train, predict, and understand xgboost models
 ```
 
-The --help works after any subcommand to display that subcommands info,
-flags, or options.
+The --help works after any subcommand to display that subcommands
+info, flags, or options.
 
 ## Summary statistics
 
@@ -94,11 +96,11 @@ var     0.68112224
 
 ## k-quintiles
 
-Simple way to get k-quintiles with the -q (5-quintile) and -Q k (where k is
-user defined) flags.
+Simple way to get k-quintiles with the -q (5-quintile) and -Q k (where
+k is user defined) flags.
 
 ```
-> cat tests/iris.csv | awk -F',' '{print $1}' |st quintiles -h -q 10
+> cat tests/iris.csv | awk -F',' '{print $1}' |st quintiles -h -k 10
 10%      4.8
 20%      5
 30%      5.3
@@ -112,18 +114,18 @@ user defined) flags.
 
 ## Model Evaluation
 
-Model evaluation is super important, and this subcommand contains some common
-tools for understanding your model.
+Model evaluation is super important, and this subcommand contains some
+common tools for understanding your model.
 
-Note: All classes are assumed to labeled 0..N. This starting at 0 and growing
-up is assumed in all the calculations within this section. Ensure your data is
-in this format or face the panics.
+Note: All classes are assumed to labeled 0..N. This starting at 0 and
+growing up is assumed in all the calculations within this
+section. Ensure your data is in this format or face the panics.
 
-Additionally, all data passed into this subcommand is expected to be a list of
-line separated tuples of the form `predicted, actual`. Again `actual` must be
-0..N. Predicted in this case is an int or a (0,1) value. In the case of a (0,1)
-range, this is rounded at 0.5 up or down to the nearest int. To specify the
-threshold use the `-t` flag.
+Additionally, all data passed into this subcommand is expected to be a
+list of line separated tuples of the form `predicted, actual`. Again
+`actual` must be 0..N. Predicted in this case is an int or a (0,1)
+value. In the case of a (0,1) range, this is rounded at 0.5 up or down
+to the nearest int. To specify the threshold use the `-t` flag.
 
 ```bash
 > st eval iris_results.csv
@@ -133,7 +135,8 @@ threshold use the `-t` flag.
 2       0       0       8
 ```
 
-There is a `-v` flag which will provide the TPR and FPR rates for each class.
+There is a `-v` flag which will provide the TPR and FPR rates for each
+class.
 
 ```bash
 > st eval -v iris_results.csv
@@ -148,15 +151,15 @@ class   tpr     fpr     tnr     fnr
 2       1.000   0.000   1.000   0.000
 ```
 
-For binary and softmax objective functions. There is also a Bayes estimator of
-the models effective performance. This requires passing in a list of base rates
-of occurrence for a specific class. The length of the list much match the number
-of classes. 
+For binary and softmax objective functions. There is also a Bayes
+estimator of the models effective performance. This requires passing
+in a list of base rates of occurrence for a specific class. The length
+of the list much match the number of classes.
 
-Apply Bayes formula, given a natual rate of occurance for the target class. In
-the example below, the natural rate of class_1 is very low. This answers the
-question: if the model predicts class_N, what is the probability that the
-predicted input is of class_N.
+Apply Bayes formula, given a natual rate of occurance for the target
+class. In the example below, the natural rate of class_1 is very
+low. This answers the question: if the model predicts class_N, what is
+the probability that the predicted input is of class_N.
 
 ```bash
 > st eval -v -b '0.99,0.01' results.csv
@@ -170,6 +173,37 @@ class   tpr     fpr     tnr     fnr
 
 0: Pr(class_0 | positive) = 0.99885994
 1: Pr(class_1 | positive) = 0.291144
+```
+
+A ROC curve in table form. For this the expected input is a list of
+tuples of `prediction, actual` where prediction is a range (0,1).
+
+```bash
+> st eval --table results.csv
+-       1       0
+1       57492   2465
+0       2508    57535
+
+t       prec    f1      tpr     fpr
+0.05    0.7785  0.9975  0.8745  0.2837
+0.10    0.8343  0.9944  0.9074  0.1974
+0.15    0.8688  0.9910  0.9259  0.1497
+0.20    0.8922  0.9876  0.9375  0.1193
+0.25    0.9087  0.9843  0.9449  0.0989
+0.30    0.9215  0.9797  0.9498  0.0834
+0.35    0.9330  0.9748  0.9534  0.0701
+0.40    0.9429  0.9695  0.9560  0.0587
+0.45    0.9516  0.9641  0.9578  0.0491
+0.50    0.9589  0.9582  0.9585  0.0411
+0.55    0.9653  0.9521  0.9587  0.0342
+0.60    0.9714  0.9442  0.9576  0.0278
+0.65    0.9760  0.9355  0.9553  0.0230
+0.70    0.9808  0.9246  0.9519  0.0181
+0.75    0.9852  0.9108  0.9465  0.0137
+0.80    0.9898  0.8916  0.9381  0.0092
+0.85    0.9935  0.8628  0.9235  0.0057
+0.90    0.9962  0.8167  0.8976  0.0032
+0.95    0.9985  0.7174  0.8349  0.0011
 ```
 
 ## XGBoost
