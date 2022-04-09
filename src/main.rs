@@ -283,7 +283,11 @@ enum Command {
 
     #[structopt(about = "k-quintile from a single vector (default k = 5)")]
     Quintiles {
-        #[structopt(short, help = "k-quintile, for some input k", default_value = "5")]
+        #[structopt(
+            short = "k",
+            help = "k-quintile, for some input k",
+            default_value = "5"
+        )]
         quintiles: u32,
 
         #[structopt(short = "h", long = "with-header")]
@@ -319,8 +323,14 @@ enum Command {
         )]
         threshold: Option<f32>,
 
-        #[structopt(short, long, long = "show verbose output")]
+        #[structopt(short, long, help = "show verbose output")]
         verbose: bool,
+
+        #[structopt(
+            long,
+            help = "if results are binary predictions in (0,1), output a table for each threshold and that thresholds metrics."
+        )]
+        table: bool,
 
         #[structopt(
             short,
@@ -563,6 +573,7 @@ fn main() {
         Command::Eval {
             threshold,
             verbose,
+            table,
             base,
             input,
         } => {
@@ -581,53 +592,14 @@ fn main() {
                 vec![]
             };
 
-            let mut classes = HashMap::new();
+            let matrix = st_core::confusion_matrix(&tuples, threshold);
+            let stats = st_core::confusion_matrix_stats(&matrix);
 
-            for (_, c) in &tuples {
-                // f32 is not hashable, convert to string
-                classes.insert(format!("{}", c), 1);
-            }
-
-            let size = classes.keys().len();
-            let mut matrix = vec![];
-
-            // create the confusion matrix
-            for _ in 0..size {
-                let mut row = vec![];
-                for _ in 0..size {
-                    row.push(0);
-                }
-                matrix.push(row);
-            }
-
-            // intended to use only with binary (0,1) ranges. Not softprob (yet).
-            for (p, actual_class_col) in &tuples {
-                let predicted_class_row = if let Some(t) = threshold {
-                    (*p + (1.0 - t)) as usize
-                } else if size == 2 {
-                    (*p + 0.5) as usize
-                } else {
-                    *p as usize
-                };
-
-                matrix[predicted_class_row][*actual_class_col as usize] += 1;
-            }
-
-            let mut body = String::new();
-            let mut header = String::new();
-
-            // reverse each row so they are in descending order
-            // after this the matrix is in descending order from top/left to bottom/right
-            // the purpose for ordering this way is for a binary prediction this defautt layout
-            // matches a confusion matrix
-            // TP FP
-            // FN TN
-            for i in 0..size {
-                matrix[i].reverse();
-            }
-            matrix.reverse();
+            let size = matrix.len();
 
             // convert the matrix into a formatted string for stdout
+            let mut header = String::new();
+            let mut body = String::new();
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
@@ -646,61 +618,19 @@ fn main() {
             println!("{}", header);
             println!("{}", body);
 
-            let mut counts = HashMap::new();
-            for i in 0..size {
-                // TP FN FP TN
-                counts.insert(i, vec![0.0, 0.0, 0.0, 0.0]);
-            }
-
-            let mut total = 0.0;
-
-            for i in 0..size {
-                let mut fn_i = 0.0;
-
-                for j in 0..size {
-                    // total the entire matrix
-                    total += matrix[i][j] as f32;
-
-                    // TP
-                    if i == j {
-                        let data = counts.get_mut(&i).unwrap();
-                        data[0] = matrix[i][j] as f32;
-                        continue;
-                    }
-
-                    let data = counts.get_mut(&i).unwrap();
-                    // FP
-                    data[2] += matrix[j][i] as f32;
-
-                    // FN
-                    fn_i += matrix[i][j] as f32;
-                }
-
-                let data = counts.get_mut(&i).unwrap();
-                // FN
-                data[1] = fn_i;
-            }
-
-            let mut base_calc_str = String::new();
+            let mut bayes_calc_str = String::new();
             let mut verbose_str = String::new();
+
             verbose_str.push_str(&format!(
                 "{:<8}{:<8}{:<8}{:<8}{:<8}\n",
                 "class", "tpr", "fpr", "tnr", "fnr"
             ));
 
-            for k in 0..size {
-                let v = counts.get_mut(&k).unwrap();
-                // TN
-                v[3] = total - v[0] - v[1] - v[2];
-                let fpr = v[2] / (v[2] + v[3]);
-                let tpr = v[0] / (v[0] + v[1]);
-                let fnr = v[1] / (v[1] + v[0]);
-                let tnr = v[3] / (v[3] + v[1]);
-
+            for stat in stats {
                 if verbose {
                     verbose_str.push_str(&format!(
                         "{:<8}{:<8.3}{:<8.3}{:<8.3}{:<8.3}\n",
-                        k, tpr, fpr, tnr, fnr
+                        stat.label, stat.tpr, stat.fpr, stat.tnr, stat.fnr
                     ));
                 }
 
@@ -712,20 +642,39 @@ fn main() {
                         std::process::exit(1);
                     }
 
-                    let temp = (tpr * bases[k]) + (fpr * (1.0 - bases[k]));
-                    let val = (tpr * bases[k]) / temp;
-                    base_calc_str
-                        .push_str(&format!("{}: Pr(class_{} | positive) = {}\n", k, k, val));
+                    let prob_positive =
+                        (stat.tpr * bases[stat.label]) + (stat.fpr * (1.0 - bases[stat.label]));
+
+                    let prob_class_given_positive = (stat.tpr * bases[stat.label]) / prob_positive;
+
+                    bayes_calc_str.push_str(&format!(
+                        "{}: Pr(class_{}|positive) = {}\n",
+                        stat.label, stat.label, prob_class_given_positive
+                    ));
                 }
             }
 
             if verbose {
                 print!("{}", verbose_str);
+                println!("");
             }
 
             if !bases.is_empty() {
+                print!("{}", bayes_calc_str);
                 println!("");
-                print!("{}", base_calc_str);
+            }
+
+            if table {
+                let output = st_core::threshold_table_stats(&tuples);
+
+                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "trp", "fpr");
+
+                for row in output {
+                    println!(
+                        "{:<8.2}{:<8.4}{:<8.4}{:<8.4}{:<8.4}",
+                        row[0], row[1], row[2], row[3], row[4]
+                    );
+                }
             }
         }
 
@@ -869,7 +818,7 @@ fn main() {
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
-                if index < length - 2 {
+                if index < length - 1 {
                     output.push_str(&format!("{},", b));
                 } else {
                     output.push_str(&format!("{}", b));

@@ -76,11 +76,180 @@ pub fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
     )
 }
 
+pub fn confusion_matrix(tuples: &Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<Vec<u32>> {
+    let mut classes = HashMap::new();
+
+    for (_, c) in tuples {
+        // f32 is not hashable, convert to string
+        classes.insert(format!("{}", c), 1);
+    }
+
+    let size = classes.keys().len();
+    let mut matrix = vec![];
+
+    // create the confusion matrix
+    for _ in 0..size {
+        let mut row = vec![];
+        for _ in 0..size {
+            row.push(0);
+        }
+        matrix.push(row);
+    }
+
+    // intended to use only with binary (0,1) ranges. Not softprob (yet).
+    for (p, actual_class_col) in tuples {
+        let predicted_class_row = if let Some(t) = threshold {
+            (*p + (1.0 - t)) as usize
+        } else if size == 2 {
+            (*p + 0.5) as usize
+        } else {
+            *p as usize
+        };
+
+        matrix[predicted_class_row][*actual_class_col as usize] += 1;
+    }
+
+    // reverse each row so they are in descending order
+    // after this the matrix is in descending order from top/left to bottom/right
+    // the purpose for ordering this way is for a binary prediction this defautt layout
+    // matches a confusion matrix
+    // TP FP
+    // FN TN
+    for i in 0..size {
+        matrix[i].reverse();
+    }
+    matrix.reverse();
+
+    matrix
+}
+
+pub struct CMatrixStats {
+    pub label: usize,
+    pub fpr: f32,
+    pub tpr: f32,
+    pub fnr: f32,
+    pub tnr: f32,
+}
+
+pub fn confusion_matrix_stats(matrix: &Vec<Vec<u32>>) -> Vec<CMatrixStats> {
+    let size = matrix.len();
+
+    let mut counts = HashMap::new();
+    for i in 0..size {
+        // TP FN FP TN
+        counts.insert(i, vec![0.0, 0.0, 0.0, 0.0]);
+    }
+
+    let mut total = 0.0;
+
+    for i in 0..size {
+        let mut fn_i = 0.0;
+
+        for j in 0..size {
+            // total the entire matrix
+            total += matrix[i][j] as f32;
+
+            // TP
+            if i == j {
+                let data = counts.get_mut(&i).unwrap();
+                data[0] = matrix[i][j] as f32;
+                continue;
+            }
+
+            let data = counts.get_mut(&i).unwrap();
+            // FP
+            data[2] += matrix[j][i] as f32;
+
+            // FN
+            fn_i += matrix[i][j] as f32;
+        }
+
+        let data = counts.get_mut(&i).unwrap();
+        // FN
+        data[1] = fn_i;
+    }
+
+    let mut stats = vec![];
+
+    for k in 0..size {
+        let v = counts.get_mut(&k).unwrap();
+        // TN
+        v[3] = total - v[0] - v[1] - v[2];
+
+        stats.push(CMatrixStats {
+            label: k,
+            fpr: v[2] / (v[2] + v[3]),
+            tpr: v[0] / (v[0] + v[1]),
+            fnr: v[1] / (v[1] + v[0]),
+            tnr: v[3] / (v[3] + v[1]),
+        })
+    }
+
+    stats.sort_by(|a, b| a.label.cmp(&b.label));
+
+    stats
+}
+
+pub fn threshold_table_stats(tuples: &Vec<(f32, f32)>) -> Vec<Vec<f32>> {
+    let mut out = vec![];
+    let mut t = 0.05;
+
+    loop {
+        if t > 1.0 {
+            break;
+        }
+
+        let mut ttp: f32 = 0.0;
+        let mut tfp: f32 = 0.0;
+        let mut tfn: f32 = 0.0;
+        let mut ttn: f32 = 0.0;
+
+        for (p, a) in tuples {
+            if *p >= t && *a == 1.0 {
+                ttp += 1.0;
+                continue;
+            }
+
+            if *p >= t && *a == 0.0 {
+                tfp += 1.0;
+                continue;
+            }
+
+            if *p < t && *a == 1.0 {
+                tfn += 1.0;
+                continue;
+            }
+
+            if *p < t && *a == 0.0 {
+                ttn += 1.0;
+                continue;
+            }
+        }
+
+        let precision = ttp / (ttp + tfp);
+        let recall = ttp / (ttp + tfn);
+        let f1 = 2.0 * (recall * precision) / (recall + precision);
+        let fpr = tfp / (tfp + ttn);
+
+        out.push(vec![t, precision, recall, f1, fpr]);
+
+        t += 0.05;
+    }
+
+    out
+}
+
 /// get_input will check if the input parameter is_some, and if so read input from a file, else,
 /// read input from stdin. A new String is returned with the contents.
 pub fn get_input(input: Option<PathBuf>) -> String {
     if let Some(path) = input {
-        std::fs::read_to_string(path).unwrap()
+        match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
     } else {
         let mut input = String::new();
         let stdin = std::io::stdin();
@@ -97,7 +266,13 @@ pub fn get_input(input: Option<PathBuf>) -> String {
 
 pub fn get_input_bytes(input: Option<PathBuf>) -> Vec<u8> {
     if let Some(path) = input {
-        std::fs::read(path).unwrap()
+        match std::fs::read(path) {
+            Ok(bs) => bs,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
     } else {
         let mut stdin = std::io::stdin();
         let mut buf = vec![];

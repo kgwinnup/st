@@ -25,6 +25,10 @@ When using cargo to install, make sure ~/.cargo/bin is in your $PATH.
 
 ## OS X
 
+When using cargo to install, make sure ~/.cargo/bin is in your $PATH.
+
+## OS X
+
 ```
 > # install rustup toolchain
 
