@@ -502,8 +502,6 @@ fn main() {
             print_quintiles(&mut data, quintiles);
         }
 
-        //   313      7
-        //    42    338
         Command::Eval {
             threshold,
             verbose,
