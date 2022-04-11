@@ -597,7 +597,7 @@ fn main() {
                 let output = st_core::threshold_table_stats(&tuples);
 
                 println!("ROC table\n");
-                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "trp", "fpr");
+                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "tpr", "fpr");
 
                 for row in output {
                     println!(

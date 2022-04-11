@@ -227,11 +227,11 @@ pub fn threshold_table_stats(tuples: &Vec<(f32, f32)>) -> Vec<Vec<f32>> {
         }
 
         let precision = ttp / (ttp + tfp);
-        let recall = ttp / (ttp + tfn);
-        let f1 = 2.0 * (recall * precision) / (recall + precision);
+        let tpr = ttp / (ttp + tfn);
+        let f1 = 2.0 * (tpr * precision) / (tpr + precision);
         let fpr = tfp / (tfp + ttn);
 
-        out.push(vec![t, precision, recall, f1, fpr]);
+        out.push(vec![t, precision, tpr, f1, fpr]);
 
         t += 0.05;
     }
