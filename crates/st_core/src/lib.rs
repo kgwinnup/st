@@ -109,6 +109,17 @@ pub fn confusion_matrix(tuples: &Vec<(f32, f32)>, threshold: Option<f32>) -> Vec
         matrix[predicted_class_row][*actual_class_col as usize] += 1;
     }
 
+    // reverse each row so they are in descending order
+    // after this the matrix is in descending order from top/left to bottom/right
+    // the purpose for ordering this way is for a binary prediction this defautt layout
+    // matches a confusion matrix
+    // TP FP
+    // FN TN
+    for i in 0..size {
+        matrix[i].reverse();
+    }
+    matrix.reverse();
+
     matrix
 }
 
@@ -147,7 +158,7 @@ pub fn confusion_matrix_stats(matrix: &Vec<Vec<u32>>) -> Vec<CMatrixStats> {
 
             let data = counts.get_mut(&i).unwrap();
             // FP
-            data[2] += matrix[i][j] as f32;
+            data[2] += matrix[j][i] as f32;
 
             // FN
             fn_i += matrix[i][j] as f32;
