@@ -276,14 +276,8 @@ enum Command {
         )]
         threshold: Option<f32>,
 
-        #[structopt(short, long, help = "show verbose output")]
-        verbose: bool,
-
-        #[structopt(
-            long,
-            help = "if results are binary predictions in (0,1), output a table for each threshold and that thresholds metrics."
-        )]
-        table: bool,
+        #[structopt(short, long, parse(from_occurrences), help = "show verbose output")]
+        verbose: u32,
 
         #[structopt(
             short,
@@ -505,7 +499,6 @@ fn main() {
         Command::Eval {
             threshold,
             verbose,
-            table,
             bayes,
             input,
         } => {
@@ -562,7 +555,7 @@ fn main() {
             ));
 
             for stat in stats {
-                if verbose {
+                if verbose > 0 {
                     verbose_str.push_str(&format!(
                         "{:<8}{:<8.3}{:<8.3}{:<8.3}{:<8.3}\n",
                         stat.label, stat.tpr, stat.fpr, stat.tnr, stat.fnr
@@ -572,7 +565,7 @@ fn main() {
                 if !bases.is_empty() {
                     if bases.len() != size {
                         eprintln!(
-                            "invalid number of --base values, it must match the number of classes"
+                            "invalid number of baseline values, it must match the number of classes"
                         );
                         std::process::exit(1);
                     }
@@ -589,19 +582,21 @@ fn main() {
                 }
             }
 
-            if verbose {
+            if verbose > 0 {
                 print!("{}", verbose_str);
                 println!("");
             }
 
             if !bases.is_empty() {
+                println!("Bayes estimates with baseline rates\n");
                 print!("{}", bayes_calc_str);
                 println!("");
             }
 
-            if table {
+            if verbose > 1 && matrix.len() == 2 {
                 let output = st_core::threshold_table_stats(&tuples);
 
+                println!("ROC table\n");
                 println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "trp", "fpr");
 
                 for row in output {
