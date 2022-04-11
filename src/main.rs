@@ -535,9 +535,9 @@ fn main() {
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
-                header.push_str(&format!("{:<8}", size - 1 - i));
+                header.push_str(&format!("{:<8}", i));
 
-                body.push_str(&format!("{:<8}", size - 1 - i));
+                body.push_str(&format!("{:<8}", i));
 
                 for j in 0..size {
                     body.push_str(&format!("{:<8}", matrix[i][j]));
