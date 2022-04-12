@@ -298,7 +298,9 @@ f0 = 0.004981032
 
 ## Correlation Matrix
 
-Computes the Pearson correlation coefficient matrix.
+Computes the Pearson correlation coefficient matrix. In the example
+below, the `-y` flag is used because the CSV file still contains the
+string labels in column 4.
 
 ```bash
 > st cor-matrix -y 4 tests/iris_cleaned.csv
