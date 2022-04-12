@@ -42,47 +42,6 @@ pub fn print_histo(input: &mut [f64], prec: u32) {
     println!("{}", plot);
 }
 
-pub fn print_summary(input: &mut [f64], prec: u32) {
-    let (sd, var, mean) = st_core::stdev_var_mean(input);
-    let m = st_core::mode(input, prec);
-    let med = st_core::median(input);
-    let min = input[0];
-    let max = input[input.len() - 1];
-
-    println!(
-        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
-        "n", "min", "max", "mean", "median", "mode", "sd", "var"
-    );
-    println!(
-        "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
-        input.len(),
-        min as f32,
-        max as f32,
-        mean as f32,
-        med as f32,
-        m as f32,
-        sd as f32,
-        var as f32
-    );
-}
-
-pub fn print_summary_t(input: &mut [f64], prec: u32) {
-    let (sd, var, mean) = st_core::stdev_var_mean(input);
-    let m = st_core::mode(input, prec);
-    let med = st_core::median(input);
-    let min = input[0];
-    let max = input[input.len() - 1];
-
-    println!("{:<8}{}", "N", input.len());
-    println!("{:<8}{}", "min", min as f32);
-    println!("{:<8}{}", "max", max as f32);
-    println!("{:<8}{}", "mean", mean as f32);
-    println!("{:<8}{}", "med", med as f32);
-    println!("{:<8}{}", "mode", m as f32);
-    println!("{:<8}{}", "stdev", sd as f32);
-    println!("{:<8}{}", "var", var as f32);
-}
-
 pub fn print_quintiles(input: &mut [f64], k: u32) {
     if input.len() < (k as usize) {
         eprintln!(
@@ -266,13 +225,6 @@ enum Command {
     Summary {
         #[structopt(short)]
         transpose: bool,
-
-        #[structopt(
-            long,
-            default_value = "1",
-            help = "if inputs are floats, for bucketing purposes they are converted to ints"
-        )]
-        precision: u32,
 
         #[structopt(short = "h", long = "with-header")]
         with_header: bool,
@@ -532,16 +484,17 @@ fn main() {
     match opt.cmd {
         Command::Summary {
             transpose,
-            precision,
             with_header,
             input,
         } => {
             let raw_inputs = st_core::get_input(input);
-            let mut data = st_core::to_vector(&raw_inputs, with_header);
+            let data = st_core::to_vector(&raw_inputs, with_header);
+            let series = st_core::Series::new(data);
+
             if transpose {
-                print_summary_t(&mut data, precision)
+                series.summary_t();
             } else {
-                print_summary(&mut data, precision)
+                series.summary();
             }
         }
 
