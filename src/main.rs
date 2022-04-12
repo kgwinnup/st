@@ -310,7 +310,19 @@ enum Command {
     },
 
     #[structopt(about = "train, predict, and understand xgboost models")]
-    Xgboost(TreeOptions),
+    Xgb(TreeOptions),
+
+    #[structopt(about = "Computes the Pearson correlation coefficient")]
+    CorMatrix {
+        #[structopt(short, long, help = "predictor column", default_value = "1000000")]
+        ycol: usize,
+
+        #[structopt(short = "h", long = "with-header", help = "with header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
 
     #[structopt(
         about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
@@ -323,21 +335,15 @@ enum Command {
         )]
         threshold: Option<f32>,
 
-        #[structopt(short, long, help = "show verbose output")]
-        verbose: bool,
-
-        #[structopt(
-            long,
-            help = "if results are binary predictions in (0,1), output a table for each threshold and that thresholds metrics."
-        )]
-        table: bool,
+        #[structopt(short, long, parse(from_occurrences), help = "show verbose output")]
+        verbose: u32,
 
         #[structopt(
             short,
             long,
             help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
         )]
-        base: Option<String>,
+        bayes: Option<String>,
 
         #[structopt(parse(from_os_str))]
         input: Option<PathBuf>,
@@ -568,19 +574,16 @@ fn main() {
             }
         }
 
-        //   313      7
-        //    42    338
         Command::Eval {
             threshold,
             verbose,
-            table,
-            base,
+            bayes,
             input,
         } => {
             let raw_inputs = st_core::get_input(input);
             let tuples = st_core::to_tuple(&raw_inputs);
 
-            let bases: Vec<f32> = if let Some(s) = base {
+            let bases: Vec<f32> = if let Some(s) = bayes {
                 match st_core::str_to_vector(&s, ",") {
                     Ok(xs) => xs,
                     Err(_) => {
@@ -600,6 +603,9 @@ fn main() {
             // convert the matrix into a formatted string for stdout
             let mut header = String::new();
             let mut body = String::new();
+            header.push_str("Confusion Matrix\n");
+            header.push_str("Predicted on y-axis, Actual on x-axis\n");
+            header.push('\n');
             header.push_str(&format!("{:<8}", "-"));
 
             for i in 0..size {
@@ -627,7 +633,7 @@ fn main() {
             ));
 
             for stat in stats {
-                if verbose {
+                if verbose > 0 {
                     verbose_str.push_str(&format!(
                         "{:<8}{:<8.3}{:<8.3}{:<8.3}{:<8.3}\n",
                         stat.label, stat.tpr, stat.fpr, stat.tnr, stat.fnr
@@ -637,7 +643,7 @@ fn main() {
                 if !bases.is_empty() {
                     if bases.len() != size {
                         eprintln!(
-                            "invalid number of --base values, it must match the number of classes"
+                            "invalid number of baseline values, it must match the number of classes"
                         );
                         std::process::exit(1);
                     }
@@ -654,20 +660,22 @@ fn main() {
                 }
             }
 
-            if verbose {
+            if verbose > 0 {
                 print!("{}", verbose_str);
                 println!("");
             }
 
             if !bases.is_empty() {
+                println!("Bayes estimates with baseline rates\n");
                 print!("{}", bayes_calc_str);
                 println!("");
             }
 
-            if table {
+            if verbose > 1 && matrix.len() == 2 {
                 let output = st_core::threshold_table_stats(&tuples);
 
-                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "trp", "fpr");
+                println!("ROC table\n");
+                println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "tpr", "fpr");
 
                 for row in output {
                     println!(
@@ -678,7 +686,7 @@ fn main() {
             }
         }
 
-        Command::Xgboost(TreeOptions::Train {
+        Command::Xgb(TreeOptions::Train {
             ycol,
             depth,
             eta,
@@ -737,7 +745,7 @@ fn main() {
             let _ = bst.save(output).unwrap();
         }
 
-        Command::Xgboost(TreeOptions::Predict {
+        Command::Xgb(TreeOptions::Predict {
             ycol,
             model_in: model,
             with_header,
@@ -781,7 +789,7 @@ fn main() {
             }
         }
 
-        Command::Xgboost(TreeOptions::Importance {
+        Command::Xgb(TreeOptions::Importance {
             input,
             typ,
             dump_model,
@@ -809,6 +817,34 @@ fn main() {
                 let bst = Booster::load_buffer(&bytes).unwrap();
                 let model = bst.dump_model(true, None).unwrap();
                 importance(model, &typ);
+            }
+        }
+
+        Command::CorMatrix {
+            ycol,
+            with_header,
+            input,
+        } => {
+            let input = st_core::get_input(input);
+            let (xdata, _) = st_core::to_matrix(&input, ycol, with_header);
+            let matrix = st_core::correlation_matrix(&xdata);
+
+            let size = matrix.len();
+
+            print!("{:<8}", "-");
+            for i in 0..size {
+                print!("{:<8}", i);
+            }
+            println!("");
+
+            for i in 0..size {
+                print!("{:<8}", i);
+                for j in 0..size {
+                    if j < i + 1 {
+                        print!("{:<8.2}", matrix[i][j]);
+                    }
+                }
+                println!("");
             }
         }
 
