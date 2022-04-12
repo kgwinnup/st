@@ -838,7 +838,7 @@ fn main() {
             println!("");
 
             for i in 0..size {
-                print!("{:<8}", format!("{}:", i));
+                print!("{:<8}", i);
                 for j in 0..size {
                     if j < i + 1 {
                         print!("{:<8.2}", matrix[i][j]);
