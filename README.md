@@ -71,7 +71,7 @@ SUBCOMMANDS:
     help          Prints this message or the help of the given subcommand(s)
     quintiles     k-quintile from a single vector (default k = 5)
     summary       summary statistics from a single vector
-    xgboost       train, predict, and understand xgboost models
+    xgb           train, predict, and understand xgboost models
 ```
 
 The --help works after any subcommand to display that subcommands
@@ -263,7 +263,7 @@ Training parameters can be tuned, such as eta and max depth. See `st xgboost
 train --help` for more options.
 
 ```bash
-> cat tests/iris_train.csv | st xgboost train -n 3 -y 4 -m out.model -o multi:softmax
+> cat tests/iris_train.csv | st xgb train -n 3 -y 4 -m out.model -o multi:softmax
 merror = 0.008
 ```
 
@@ -272,7 +272,7 @@ predict subcommand. The predicted value for the test set is added as the first
 column of the output.
 
 ```bash
-> cat tests/iris_test.csv | st xgboost predict -m out.model
+> cat tests/iris_test.csv | st xgb predict -m out.model
 1,7,3.2,4.7,1.4,1
 1,6.6,3,4.4,1.4,1
 1,5,2.3,3.3,1,1
@@ -289,7 +289,7 @@ column number.
 
 
 ```bash
-> st xgboost importance -t gain out.model
+> st xgb importance -t gain out.model
 f2 = 0.49456635
 f3 = 0.4888009
 f1 = 0.011651897

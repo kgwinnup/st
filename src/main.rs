@@ -310,7 +310,7 @@ enum Command {
     },
 
     #[structopt(about = "train, predict, and understand xgboost models")]
-    Xgboost(TreeOptions),
+    Xgb(TreeOptions),
 
     #[structopt(about = "Computes the Pearson correlation coefficient")]
     CorMatrix {
@@ -686,7 +686,7 @@ fn main() {
             }
         }
 
-        Command::Xgboost(TreeOptions::Train {
+        Command::Xgb(TreeOptions::Train {
             ycol,
             depth,
             eta,
@@ -745,7 +745,7 @@ fn main() {
             let _ = bst.save(output).unwrap();
         }
 
-        Command::Xgboost(TreeOptions::Predict {
+        Command::Xgb(TreeOptions::Predict {
             ycol,
             model_in: model,
             with_header,
@@ -789,7 +789,7 @@ fn main() {
             }
         }
 
-        Command::Xgboost(TreeOptions::Importance {
+        Command::Xgb(TreeOptions::Importance {
             input,
             typ,
             dump_model,
