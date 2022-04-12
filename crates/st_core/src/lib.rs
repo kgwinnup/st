@@ -537,10 +537,11 @@ mod tests {
             vec![39.0, 33.0, 12.0],
         ];
 
-        let out = correlation_matrix(input);
-        for row in out {
-            println!("{:?}", row);
-        }
-        assert_eq!(true, false);
+        let m = correlation_matrix(&input);
+
+        assert_eq!(m[0][0], 1.0);
+        assert_eq!(m[1][0], 0.5184570956392384);
+        assert_eq!(m[2][0], -0.7018864176470834);
+        assert_eq!(m[2][1], -0.860940956122431);
     }
 }
