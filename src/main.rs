@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use murmur3::murmur3_32;
 use st_core;
 use std::collections::HashMap;
@@ -6,6 +7,40 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use xgboost::{parameters, Booster, DMatrix};
+
+pub fn print_line(input: &[f64]) {
+    let config = rasciigraph::Config::default()
+        .with_height(20)
+        .with_width(70)
+        .with_offset(0);
+    let plot = rasciigraph::plot(input.to_vec(), config);
+    println!("{}", plot);
+}
+
+pub fn print_histo(input: &mut [f64], prec: u32) {
+    let mut histo: HashMap<u32, u32> = HashMap::new();
+
+    for val in input.iter() {
+        let temp = val * (prec as f64);
+        *histo.entry(temp as u32).or_insert(1) += 1;
+    }
+
+    let mut new_vec = vec![];
+
+    let keys = histo.keys().sorted();
+    for k in keys {
+        if let Some(v) = histo.get(k) {
+            new_vec.push(*v as f64);
+        }
+    }
+
+    let config = rasciigraph::Config::default()
+        .with_height(20)
+        .with_width(70)
+        .with_offset(0);
+    let plot = rasciigraph::plot(new_vec, config);
+    println!("{}", plot);
+}
 
 pub fn print_summary(input: &mut [f64], prec: u32) {
     let (sd, var, mean) = st_core::stdev_var_mean(input);
@@ -262,10 +297,23 @@ enum Command {
         input: Option<PathBuf>,
     },
 
+    #[structopt(about = "very simple cli graphing")]
+    Graph {
+        #[structopt(short)]
+        typ: String,
+
+        #[structopt(short = "h", long = "with-header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
     #[structopt(about = "train, predict, and understand xgboost models")]
     Xgboost(TreeOptions),
 
-    CorrelationMatrix {
+    #[structopt(about = "Computes the Pearson correlation coefficient")]
+    CorMatrix {
         #[structopt(short, long, help = "predictor column", default_value = "1000000")]
         ycol: usize,
 
@@ -505,6 +553,25 @@ fn main() {
             let raw_inputs = st_core::get_input(input);
             let mut data = st_core::to_vector(&raw_inputs, with_header);
             print_quintiles(&mut data, quintiles);
+        }
+
+        Command::Graph {
+            typ,
+            with_header,
+            input,
+        } => {
+            let raw_inputs = st_core::get_input(input);
+            let mut data = st_core::to_vector(&raw_inputs, with_header);
+            let name = typ.to_lowercase();
+
+            if name.starts_with("line") {
+                print_line(&data);
+            } else if name.starts_with("histo") {
+                print_histo(&mut data, 1);
+            } else {
+                eprintln!("invalid graph type");
+                std::process::exit(1);
+            }
         }
 
         Command::Eval {
@@ -753,7 +820,7 @@ fn main() {
             }
         }
 
-        Command::CorrelationMatrix {
+        Command::CorMatrix {
             ycol,
             with_header,
             input,
