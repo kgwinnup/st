@@ -14,7 +14,7 @@ largely replaces many of the simple scripts I used to use.
 4. [K-Quintiles](#k-quintiles)
 5. [Model Evaluation](#model-evaluation)
 6. [XGBoost](#xgboost)
-7. [Correlation Matrix](#cor-matrix)
+7. [Correlation Matrix](#correlation-matrix)
 8. [Extract Features](#extract-features)
 9. [Graphing](#graphing)
 
