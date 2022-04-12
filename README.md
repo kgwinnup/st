@@ -14,8 +14,9 @@ largely replaces many of the simple scripts I used to use.
 4. [K-Quintiles](#k-quintiles)
 5. [Model Evaluation](#model-evaluation)
 6. [XGBoost](#xgboost)
-7. [Extract Features](#extract-features)
-8. [Graphing](#graphing)
+7. [Correlation Matrix](#cor-matrix)
+8. [Extract Features](#extract-features)
+9. [Graphing](#graphing)
 
 # Installing
 
@@ -294,6 +295,20 @@ f3 = 0.4888009
 f1 = 0.011651897
 f0 = 0.004981032
 ```
+
+## Correlation Matrix
+
+Computes the Pearson correlation coefficient matrix.
+
+```bash
+> st cor-matrix -y 4 tests/iris_cleaned.csv
+-       0       1       2       3
+0:      1.00
+1:      -0.12   1.00
+2:      0.87    -0.43   1.00
+3:      0.82    -0.37   0.96    1.00
+```
+
 
 ## Extract Features
 
