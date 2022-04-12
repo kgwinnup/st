@@ -4,76 +4,96 @@ use std::path::PathBuf;
 
 use std::str::FromStr;
 
-pub fn median(input: &mut [f64]) -> f64 {
-    if input.len() == 0 {
-        return 0.0;
-    }
-
-    if input.len() == 1 {
-        return input[0];
-    }
-
-    if input.len() == 2 {
-        return input[0] + input[1] / 2.0;
-    }
-
-    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mid = input.len() / 2;
-    input[mid]
+#[derive(Default)]
+pub struct Series {
+    pub data: Vec<f64>,
+    pub mean: f64,
+    pub median: f64,
+    pub stdev: f64,
+    pub var: f64,
+    pub min: f64,
+    pub max: f64,
 }
 
-pub fn mode(input: &[f64], prec: u32) -> f64 {
-    let mut counts: HashMap<u32, u32> = HashMap::new();
-
-    for val in input.iter() {
-        let temp = val * (prec as f64);
-        *counts.entry(temp as u32).or_insert(1) += 1;
+impl Series {
+    pub fn new(input: Vec<f64>) -> Self {
+        let mut s = Series::default();
+        s.data = input;
+        s
     }
 
-    let out = counts
-        .into_iter()
-        .max_by_key(|&(_, count)| count)
-        .map(|(val, _)| val)
-        .expect("cannot compute mode of zero numbers");
+    pub fn stats(&mut self) {
+        if self.data.len() == 0 {
+            return;
+        }
 
-    out as f64 / prec as f64
-}
+        self.median = if self.data.len() > 1 {
+            let mut temp = self.data.clone();
+            temp.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mid = self.data.len() as f64 / 2.0;
+            self.data[mid as usize]
+        } else {
+            0.0
+        };
 
-pub fn mean(input: &[f64]) -> f64 {
-    if input.len() == 0 {
-        return 0.0;
+        self.min = self.data[0];
+        self.max = self.data[0];
+
+        for x in &self.data {
+            if *x > self.max {
+                self.max = *x;
+                continue;
+            }
+
+            if *x < self.min {
+                self.min = *x;
+            }
+        }
+
+        self.mean = self.data.iter().sum::<f64>() as f64 / self.data.len() as f64;
+
+        let sum: f64 = self
+            .data
+            .iter()
+            .map(|x| (*x - self.mean).powf(2.0))
+            .collect::<Vec<f64>>()
+            .iter()
+            .sum();
+
+        self.var = sum / self.data.len() as f64;
+        self.stdev = (sum / self.data.len() as f64).sqrt();
     }
 
-    if input.len() == 1 {
-        return input[0];
+    pub fn summary(mut self) {
+        self.stats();
+
+        println!(
+            "{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}{:<11}",
+            "n", "min", "max", "mean", "median", "sd", "var"
+        );
+        println!(
+            "{:<11}{:<11.4}{:<11.4}{:<11.4}{:<11.4}{:<11.4}{:<11.4}",
+            self.data.len(),
+            self.min,
+            self.max,
+            self.mean,
+            self.median,
+            self.stdev,
+            self.var
+        );
     }
 
-    input.iter().sum::<f64>() as f64 / input.len() as f64
-}
+    pub fn summary_t(mut self) {
+        self.stats();
 
-/// (stdev, var, mean)
-pub fn stdev_var_mean(input: &[f64]) -> (f64, f64, f64) {
-    if input.len() == 0 {
-        return (0.0, 0.0, 0.0);
+        println!("{:<8}{:<8}", "N", self.data.len());
+        println!("{:<8}{:<8.4}", "min", self.min);
+        println!("{:<8}{:<8.4}", "max", self.max);
+        println!("{:<8}{:<8.4}", "mean", self.mean);
+        println!("{:<8}{:<8.4}", "med", self.median);
+        println!("{:<8}{:<8.4}", "stdev", self.stdev);
+        println!("{:<8}{:<8.4}", "var", self.var);
     }
-
-    if input.len() == 1 {
-        return (0.0, 0.0, 0.0);
-    }
-
-    let u = mean(input);
-
-    let mut sum = 0.0;
-
-    for i in input.iter() {
-        sum += (i - u).powf(2.0);
-    }
-
-    (
-        (sum / input.len() as f64).sqrt(),
-        (sum / input.len() as f64),
-        u,
-    )
 }
 
 pub fn confusion_matrix(tuples: &Vec<(f32, f32)>, threshold: Option<f32>) -> Vec<Vec<u32>> {
@@ -307,12 +327,6 @@ pub fn entropy(bytes: &[u8]) -> f64 {
     out
 }
 
-struct Set {
-    data: Vec<f64>,
-    stdev: f64,
-    mean: f64,
-}
-
 pub fn correlation_matrix(input: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     if input.is_empty() {
         eprintln!("input must be a non empty set");
@@ -328,31 +342,21 @@ pub fn correlation_matrix(input: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     for i in 0..cols {
         // add a row for each class in the out vector
         out.push(vec![0.0; cols]);
-
-        sets.insert(
-            i,
-            Set {
-                data: vec![],
-                stdev: 0.0,
-                mean: 0.0,
-            },
-        );
+        sets.insert(i, Series::new(vec![]));
     }
 
     // populate the sets map
     for row in input {
         for (index, col) in row.iter().enumerate() {
-            let set = sets.get_mut(&index).unwrap();
-            set.data.push(*col);
+            let series = sets.get_mut(&index).unwrap();
+            series.data.push(*col);
         }
     }
 
     // now calculate basic stats of each set
     for i in 0..cols {
-        let set = sets.get_mut(&i).unwrap();
-        let (sd, _, u) = stdev_var_mean(&set.data);
-        set.stdev = sd;
-        set.mean = u;
+        let series = sets.get_mut(&i).unwrap();
+        series.stats();
     }
 
     // for each index calculate its cor with every other index
