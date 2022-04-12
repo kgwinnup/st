@@ -265,6 +265,17 @@ enum Command {
     #[structopt(about = "train, predict, and understand xgboost models")]
     Xgboost(TreeOptions),
 
+    CorrelationMatrix {
+        #[structopt(short, long, help = "predictor column", default_value = "1000000")]
+        ycol: usize,
+
+        #[structopt(short = "h", long = "with-header", help = "with header")]
+        with_header: bool,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
     #[structopt(
         about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
     )]
@@ -739,6 +750,34 @@ fn main() {
                 let bst = Booster::load_buffer(&bytes).unwrap();
                 let model = bst.dump_model(true, None).unwrap();
                 importance(model, &typ);
+            }
+        }
+
+        Command::CorrelationMatrix {
+            ycol,
+            with_header,
+            input,
+        } => {
+            let input = st_core::get_input(input);
+            let (xdata, _) = st_core::to_matrix(&input, ycol, with_header);
+            let matrix = st_core::correlation_matrix(&xdata);
+
+            let size = matrix.len();
+
+            print!("{:<8}", "-");
+            for i in 0..size {
+                print!("{:<8}", i);
+            }
+            println!("");
+
+            for i in 0..size {
+                print!("{:<8}", format!("{}:", i));
+                for j in 0..size {
+                    if j < i + 1 {
+                        print!("{:<8.2}", matrix[i][j]);
+                    }
+                }
+                println!("");
             }
         }
 

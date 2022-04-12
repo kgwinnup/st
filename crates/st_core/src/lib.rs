@@ -313,7 +313,7 @@ struct Set {
     mean: f64,
 }
 
-pub fn correlation_matrix(input: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+pub fn correlation_matrix(input: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     if input.is_empty() {
         eprintln!("input must be a non empty set");
         std::process::exit(1);
