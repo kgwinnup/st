@@ -307,6 +307,82 @@ pub fn entropy(bytes: &[u8]) -> f64 {
     out
 }
 
+struct Set {
+    data: Vec<f64>,
+    stdev: f64,
+    mean: f64,
+}
+
+pub fn correlation_matrix(input: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    if input.is_empty() {
+        eprintln!("input must be a non empty set");
+        std::process::exit(1);
+    }
+
+    let rows = input.len();
+    let cols = input[0].len();
+
+    let mut out = vec![];
+
+    let mut sets = HashMap::new();
+    for i in 0..cols {
+        // add a row for each class in the out vector
+        out.push(vec![0.0; cols]);
+
+        sets.insert(
+            i,
+            Set {
+                data: vec![],
+                stdev: 0.0,
+                mean: 0.0,
+            },
+        );
+    }
+
+    // populate the sets map
+    for row in input {
+        for (index, col) in row.iter().enumerate() {
+            let set = sets.get_mut(&index).unwrap();
+            set.data.push(*col);
+        }
+    }
+
+    // now calculate basic stats of each set
+    for i in 0..cols {
+        let set = sets.get_mut(&i).unwrap();
+        let (sd, _, u) = stdev_var_mean(&set.data);
+        set.stdev = sd;
+        set.mean = u;
+    }
+
+    // for each index calculate its cor with every other index
+    for i in 0..cols {
+        for j in i..cols {
+            let mut sum = 0.0;
+            let mut xs = 0.0;
+            let mut ys = 0.0;
+
+            let set_x = sets.get(&i).unwrap();
+            let set_y = sets.get(&j).unwrap();
+
+            for k in 0..rows {
+                sum += set_x.data[k] * set_y.data[k];
+                xs += set_x.data[k].powf(2.0);
+                ys += set_y.data[k].powf(2.0);
+            }
+
+            sum -= (rows as f64) * set_x.mean * set_y.mean;
+            let dem = (xs - (rows as f64) * set_x.mean.powf(2.0)).sqrt()
+                * (ys - (rows as f64) * set_y.mean.powf(2.0)).sqrt();
+
+            let r_xy = sum / dem;
+            out[j][i] = r_xy;
+        }
+    }
+
+    out
+}
+
 /// calculates and normalizes the byte histogram
 pub fn to_byte_histogram(bytes: &[u8]) -> Vec<f64> {
     let mut histo: Vec<f64> = Vec::with_capacity(256);
@@ -404,12 +480,8 @@ pub fn to_vector(raw_inputs: &str, with_header: bool) -> Vec<f64> {
     data
 }
 
-/// to_matrix parses a input and builds a DMatrix for use with XGBoost. If 'ycol' is a valid column
-/// index, that column will be held out and used as the labels for the DMatrix.
-/// One odd piece of this function is that it returns a tuple instead of just the DMatrix. This
-/// second value in the tuple is a vector of lines from the raw input. This is used as the output
-/// of the prediction subcommand. I couldn't think of a better way a the time to do this
-/// efficiently.
+/// to_matrix parses a input and builds a Matrix. If 'ycol' is a valid column
+/// index, that column will be held out and used as the labels for the Matrix.
 pub fn to_matrix(raw_inputs: &str, ycol: usize, with_header: bool) -> (Vec<Vec<f64>>, Vec<f32>) {
     let mut xdata = Vec::new();
     let mut ydata = Vec::new();
@@ -448,4 +520,27 @@ pub fn to_matrix(raw_inputs: &str, ycol: usize, with_header: bool) -> (Vec<Vec<f
     }
 
     (xdata, ydata)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_corrm() {
+        let input = vec![
+            vec![45.0, 38.0, 10.0],
+            vec![37.0, 31.0, 15.0],
+            vec![42.0, 26.0, 17.0],
+            vec![35.0, 28.0, 21.0],
+            vec![39.0, 33.0, 12.0],
+        ];
+
+        let out = correlation_matrix(input);
+        for row in out {
+            println!("{:?}", row);
+        }
+        assert_eq!(true, false);
+    }
 }
