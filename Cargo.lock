@@ -134,7 +134,6 @@ dependencies = [
  "rand",
  "serde_json",
  "series",
- "st_core",
  "structopt",
  "xgboost",
 ]
@@ -540,18 +539,8 @@ dependencies = [
  "rand",
  "serde_json",
  "series",
- "st_core",
  "structopt",
  "xgboost",
-]
-
-[[package]]
-name = "st_core"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "rand",
- "series",
 ]
 
 [[package]]

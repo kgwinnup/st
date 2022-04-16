@@ -12,7 +12,6 @@ rand = "0.8.5"
 xgboost = "0.1.4"
 serde_json = "1.0"
 murmur3 = "0.5.1"
-st_core = { version = "^0", path = "crates/st_core" }
 series = { version = "^0", path = "crates/series" }
 
 [workspace]

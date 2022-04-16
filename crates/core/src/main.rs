@@ -1,5 +1,5 @@
 use murmur3::murmur3_32;
-use st_core;
+use series;
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::Cursor;
@@ -440,8 +440,8 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let data = st_core::to_vector(&raw_inputs, with_header);
+            let raw_inputs = series::get_input(input);
+            let data = series::to_vector(&raw_inputs, with_header);
             let series = series::Series::new(data);
 
             if transpose {
@@ -456,8 +456,8 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let mut data = st_core::to_vector(&raw_inputs, with_header);
+            let raw_inputs = series::get_input(input);
+            let mut data = series::to_vector(&raw_inputs, with_header);
             print_quintiles(&mut data, quintiles);
         }
 
@@ -467,11 +467,11 @@ fn main() {
             bayes,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let tuples = st_core::to_tuple(&raw_inputs);
+            let raw_inputs = series::get_input(input);
+            let tuples = series::to_tuple(&raw_inputs);
 
             let bases: Vec<f32> = if let Some(s) = bayes {
-                match st_core::str_to_vector(&s, ",") {
+                match series::str_to_vector(&s, ",") {
                     Ok(xs) => xs,
                     Err(_) => {
                         eprintln!("error parsing -b list");
@@ -482,8 +482,8 @@ fn main() {
                 vec![]
             };
 
-            let matrix = st_core::confusion_matrix(&tuples, threshold);
-            let stats = st_core::confusion_matrix_stats(&matrix);
+            let matrix = series::confusion_matrix(&tuples, threshold);
+            let stats = series::confusion_matrix_stats(&matrix);
 
             let size = matrix.len();
 
@@ -559,7 +559,7 @@ fn main() {
             }
 
             if verbose > 1 && matrix.len() == 2 {
-                let output = st_core::threshold_table_stats(&tuples);
+                let output = series::threshold_table_stats(&tuples);
 
                 println!("ROC table\n");
                 println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "tpr", "fpr");
@@ -584,8 +584,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let raw_inputs = st_core::get_input(input);
-            let (xdata, ydata) = st_core::to_matrix(&raw_inputs, ycol, with_header);
+            let raw_inputs = series::get_input(input);
+            let (xdata, ydata) = series::to_matrix(&raw_inputs, ycol, with_header);
 
             let training_set = to_xgboost_dataset(&xdata, Some(ydata));
 
@@ -638,8 +638,8 @@ fn main() {
             with_header,
             input,
         }) => {
-            let inputs = st_core::get_input(input);
-            let (xdata, ydata) = st_core::to_matrix(&inputs, ycol, with_header);
+            let inputs = series::get_input(input);
+            let (xdata, ydata) = series::to_matrix(&inputs, ycol, with_header);
             let test_set = to_xgboost_dataset(&xdata, None);
 
             let bst = Booster::load(model).unwrap();
@@ -712,9 +712,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let input = st_core::get_input(input);
-            let (xdata, _) = st_core::to_matrix(&input, ycol, with_header);
-            let matrix = st_core::correlation_matrix(&xdata);
+            let input = series::get_input(input);
+            let (xdata, _) = series::to_matrix(&input, ycol, with_header);
+            let matrix = series::correlation_matrix(&xdata);
 
             let size = matrix.len();
 
@@ -736,8 +736,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::ByteHistogram { input }) => {
-            let input = st_core::get_input_bytes(input);
-            let histo = st_core::to_byte_histogram(&input);
+            let input = series::get_input_bytes(input);
+            let histo = series::to_byte_histogram(&input);
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
@@ -752,8 +752,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::Entropy { input }) => {
-            let input = st_core::get_input_bytes(input);
-            let en = st_core::entropy(&input);
+            let input = series::get_input_bytes(input);
+            let en = series::entropy(&input);
             println!("{}", en);
         }
 
@@ -763,7 +763,7 @@ fn main() {
             delimiter,
             input,
         }) => {
-            let s = st_core::get_input(input);
+            let s = series::get_input(input);
             let mut buckets_out: Vec<u32> = Vec::with_capacity(kbuckets);
             for _ in 0..(kbuckets - 1) {
                 buckets_out.push(0);
