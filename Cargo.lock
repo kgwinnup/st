@@ -126,6 +126,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "core"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "murmur3",
+ "rand",
+ "serde_json",
+ "series",
+ "st_core",
+ "structopt",
+ "xgboost",
+]
+
+[[package]]
 name = "derive_builder"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -434,12 +448,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rasciigraph"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f9690d7e935db7c1475554993ec7162d11a83fae5261be2d9191294a31ac82"
-
-[[package]]
 name = "redox_syscall"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -520,14 +528,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "series"
+version = "0.1.0"
+
+[[package]]
 name = "st"
 version = "0.1.0"
 dependencies = [
  "itertools",
  "murmur3",
  "rand",
- "rasciigraph",
  "serde_json",
+ "series",
  "st_core",
  "structopt",
  "xgboost",
@@ -539,6 +551,7 @@ version = "0.1.0"
 dependencies = [
  "itertools",
  "rand",
+ "series",
 ]
 
 [[package]]
