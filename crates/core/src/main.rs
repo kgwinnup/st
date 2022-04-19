@@ -1,6 +1,5 @@
 use murmur3::murmur3_32;
 use series;
-use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
