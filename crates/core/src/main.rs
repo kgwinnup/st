@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use xgb;
 
-pub fn print_quintiles(input: &mut [f64], k: u32) {
+fn print_quintiles(input: &mut [f64], k: u32) {
     if input.len() < (k as usize) {
         eprintln!(
             "insufficient data for {} quintiles, data has only {} rows",
