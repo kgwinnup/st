@@ -126,20 +126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "murmur3",
- "rand",
- "serde_json",
- "series",
- "structopt",
- "xgb",
- "xgboost",
-]
-
-[[package]]
 name = "derive_builder"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

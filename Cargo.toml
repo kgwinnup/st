@@ -15,8 +15,8 @@ series = { version = "^0", path = "crates/series" }
 xgb = { version = "^0", path = "crates/xgb" }
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/xgb", "crates/series"]
 
 [[bin]]
-path = "crates/core/src/main.rs"
+path = "crates/core/main.rs"
 name = "st"
