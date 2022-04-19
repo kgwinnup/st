@@ -5,7 +5,7 @@ use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use xgboost::{parameters, Booster, DMatrix};
+use xgb;
 
 pub fn print_quintiles(input: &mut [f64], k: u32) {
     if input.len() < (k as usize) {
@@ -33,30 +33,6 @@ pub fn print_quintiles(input: &mut [f64], k: u32) {
     }
 }
 
-fn to_xgboost_dataset(xdata: &Vec<Vec<f64>>, ydata: Option<Vec<f32>>) -> DMatrix {
-    let rows = xdata.len();
-    let mut xdata2 = vec![];
-
-    for row in xdata {
-        for item in row {
-            xdata2.push(*item as f32);
-        }
-    }
-
-    match DMatrix::from_dense(&xdata2, rows) {
-        Ok(mut x) => {
-            if let Some(y) = ydata {
-                let _ = x.set_labels(&y);
-            }
-            x
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-}
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "st",
@@ -69,44 +45,7 @@ struct Opt {
 }
 
 #[derive(StructOpt, Debug)]
-enum ExtractOptions {
-    #[structopt(about = "create a normalized byte histogram of the input")]
-    ByteHistogram {
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
-    #[structopt(about = "calculate the bits of entropy of the input")]
-    Entropy {
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
-    #[structopt(
-        about = "given a comma separted list of strings, apply the hash-trick with k buckets"
-    )]
-    HashTrick {
-        #[structopt(short, long, help = "number of buckets")]
-        kbuckets: usize,
-
-        #[structopt(short, long, help = "use 1 or 0 only in the buckets")]
-        binary: bool,
-
-        #[structopt(
-            short = "F",
-            long,
-            help = "delimeter used to split the items (default = ',')",
-            default_value = ","
-        )]
-        delimiter: String,
-
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-}
-
-#[derive(StructOpt, Debug)]
-enum TreeOptions {
+enum XgbOptions {
     #[structopt(about = "train a new binary or multiclass model")]
     Train {
         #[structopt(short, long, help = "predictor column")]
@@ -185,6 +124,43 @@ enum TreeOptions {
 }
 
 #[derive(StructOpt, Debug)]
+enum ExtractOptions {
+    #[structopt(about = "create a normalized byte histogram of the input")]
+    ByteHistogram {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(about = "calculate the bits of entropy of the input")]
+    Entropy {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(
+        about = "given a comma separted list of strings, apply the hash-trick with k buckets"
+    )]
+    HashTrick {
+        #[structopt(short, long, help = "number of buckets")]
+        kbuckets: usize,
+
+        #[structopt(short, long, help = "use 1 or 0 only in the buckets")]
+        binary: bool,
+
+        #[structopt(
+            short = "F",
+            long,
+            help = "delimeter used to split the items (default = ',')",
+            default_value = ","
+        )]
+        delimiter: String,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+}
+
+#[derive(StructOpt, Debug)]
 enum Command {
     #[structopt(about = "summary statistics from a single vector")]
     Summary {
@@ -215,7 +191,7 @@ enum Command {
     },
 
     #[structopt(about = "train, predict, and understand xgboost models")]
-    Xgb(TreeOptions),
+    Xgb(XgbOptions),
 
     #[structopt(about = "Computes the Pearson correlation coefficient")]
     CorMatrix {
@@ -256,179 +232,6 @@ enum Command {
 
     #[structopt(about = "data transformations and feature generation tools")]
     Extract(ExtractOptions),
-}
-
-#[derive(Default, Debug)]
-struct XgboostNode {
-    name: String,
-    gain: f32,
-    cover: f32,
-}
-
-fn parse_node(node_str: &str) -> XgboostNode {
-    let mut name = String::new();
-
-    let mut in_name = false;
-    let mut in_map = false;
-    let mut in_key_name = false;
-    let mut key_name = String::new();
-    let mut val = String::new();
-
-    let mut node = XgboostNode::default();
-
-    for c in node_str.chars() {
-        match c {
-            ' ' => {
-                in_map = true;
-                in_key_name = true;
-                node.name = name.to_string();
-            }
-
-            '[' => {
-                in_name = true;
-            }
-
-            '<' => {
-                in_name = false;
-            }
-
-            '=' => {
-                in_key_name = false;
-            }
-
-            ',' => {
-                in_key_name = true;
-
-                let temp: Result<f32, _> = val.parse();
-                match temp {
-                    Ok(f) => {
-                        if key_name == "gain" {
-                            node.gain = f;
-                        } else if key_name == "cover" {
-                            node.cover = f;
-                        }
-
-                        val = String::new();
-                        key_name = String::new();
-                    }
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-
-            c => {
-                if in_name {
-                    name.push(c);
-                } else if in_map && in_key_name {
-                    key_name.push(c);
-                } else if in_map && !in_key_name {
-                    val.push(c);
-                }
-            }
-        }
-    }
-
-    let temp: Result<f32, _> = val.parse();
-    match temp {
-        Ok(f) => {
-            if key_name == "gain" {
-                node.gain = f;
-            } else if key_name == "cover" {
-                node.cover = f;
-            }
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-
-    node
-}
-
-fn importance(model_dump: String, typ: &str) {
-    let mut gain_map = HashMap::new();
-    let mut cover_map = HashMap::new();
-    let mut freq_map = HashMap::new();
-
-    let mut total_gain = 0.0;
-    let mut total_cover = 0.0;
-    let mut total_freq = 0;
-
-    for line in model_dump.split("\n").into_iter() {
-        if line.contains("leaf") {
-            continue;
-        }
-
-        let space_split = line.split(" ").collect::<Vec<&str>>();
-        if space_split.len() != 2 {
-            continue;
-        }
-
-        let node = parse_node(&line);
-
-        total_freq += 1;
-
-        if let Some(val) = freq_map.get_mut(&node.name) {
-            *val += 1;
-        } else {
-            freq_map.insert(node.name.to_string(), 1);
-        }
-
-        if let Some(val) = gain_map.get_mut(&node.name) {
-            *val += node.gain;
-            total_gain += node.gain;
-        } else {
-            gain_map.insert(node.name.to_string(), node.gain);
-            total_gain += node.gain;
-        }
-
-        if let Some(val) = cover_map.get_mut(&node.name) {
-            *val += node.cover;
-            total_cover += node.cover;
-        } else {
-            cover_map.insert(node.name.to_string(), node.cover);
-            total_cover += node.cover;
-        }
-    }
-
-    if typ == "gain" {
-        let mut list = vec![];
-        for (k, v) in gain_map {
-            list.push((k, v / total_gain));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
-
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
-    }
-
-    if typ == "cover" {
-        let mut list = vec![];
-        for (k, v) in cover_map {
-            list.push((k, v / total_cover));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
-
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
-    }
-
-    if typ == "freq" {
-        let mut list = vec![];
-        for (k, v) in freq_map {
-            list.push((k, v / total_freq));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
-
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
-    }
 }
 
 fn main() {
@@ -573,7 +376,7 @@ fn main() {
             }
         }
 
-        Command::Xgb(TreeOptions::Train {
+        Command::Xgb(XgbOptions::Train {
             ycol,
             depth,
             eta,
@@ -587,64 +390,30 @@ fn main() {
             let raw_inputs = series::get_input(input);
             let (xdata, ydata) = series::to_matrix(&raw_inputs, ycol, with_header);
 
-            let training_set = to_xgboost_dataset(&xdata, Some(ydata));
+            let training_set = xgb::to_xgboost_dataset(&xdata, Some(ydata));
 
-            let objective_fn = match objective.as_str() {
-                "binary:logistic" => parameters::learning::Objective::BinaryLogistic,
-                "multi:softmax" => parameters::learning::Objective::MultiSoftmax(nclasses),
-                "multi:softprob" => parameters::learning::Objective::MultiSoftprob(nclasses),
-                _ => {
-                    eprintln!("invalid objective function");
-                    std::process::exit(1);
-                }
-            };
-
-            let learning_params = parameters::learning::LearningTaskParametersBuilder::default()
-                .objective(objective_fn)
-                .build()
-                .unwrap();
-
-            let tree_params = parameters::tree::TreeBoosterParametersBuilder::default()
-                .max_depth(depth)
-                .eta(eta)
-                .build()
-                .unwrap();
-
-            let booster_params = parameters::BoosterParametersBuilder::default()
-                .booster_type(parameters::BoosterType::Tree(tree_params))
-                .learning_params(learning_params)
-                .verbose(false)
-                .build()
-                .unwrap();
-
-            let training_params = parameters::TrainingParametersBuilder::default()
-                .dtrain(&training_set)
-                .booster_params(booster_params)
-                .boost_rounds(rounds)
-                .build()
-                .unwrap();
-
-            let bst = Booster::train(&training_params).unwrap();
-            for (k, v) in bst.evaluate(&training_set).unwrap() {
-                eprintln!("{} = {}", k, v);
-            }
-
-            let _ = bst.save(output).unwrap();
+            xgb::train(
+                &training_set,
+                &objective,
+                nclasses,
+                depth,
+                eta,
+                rounds,
+                &output,
+            );
         }
 
-        Command::Xgb(TreeOptions::Predict {
+        Command::Xgb(XgbOptions::Predict {
             ycol,
-            model_in: model,
+            model_in,
             with_header,
             input,
         }) => {
             let inputs = series::get_input(input);
             let (xdata, ydata) = series::to_matrix(&inputs, ycol, with_header);
-            let test_set = to_xgboost_dataset(&xdata, None);
+            let test_set = xgb::to_xgboost_dataset(&xdata, None);
 
-            let bst = Booster::load(model).unwrap();
-            let predicted = bst.predict(&test_set).unwrap();
-
+            let predicted = xgb::predict(&model_in, &test_set);
             let mut buf = String::new();
 
             for (index, row) in xdata.iter().enumerate() {
@@ -676,7 +445,7 @@ fn main() {
             }
         }
 
-        Command::Xgb(TreeOptions::Importance {
+        Command::Xgb(XgbOptions::Importance {
             input,
             typ,
             dump_model,
@@ -697,14 +466,7 @@ fn main() {
                 input
             };
 
-            if dump_model {
-                let bst = Booster::load_buffer(&bytes).unwrap();
-                println!("{}", bst.dump_model(true, None).unwrap());
-            } else {
-                let bst = Booster::load_buffer(&bytes).unwrap();
-                let model = bst.dump_model(true, None).unwrap();
-                importance(model, &typ);
-            }
+            xgb::dump_model(&bytes, dump_model, &typ);
         }
 
         Command::CorMatrix {
