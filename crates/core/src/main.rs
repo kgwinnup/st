@@ -4,32 +4,6 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-fn print_quintiles(input: &mut [f64], k: u32) {
-    if input.len() < (k as usize) {
-        eprintln!(
-            "insufficient data for {} quintiles, data has only {} rows",
-            k,
-            input.len()
-        );
-        return;
-    }
-
-    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    let mut ks = vec![];
-    let size = input.len() / (k as usize);
-
-    for i in 1..k {
-        ks.push(input[(i as usize) * size] as f32);
-    }
-
-    for i in 0..k - 1 {
-        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
-        let perc_format = format!("{}%", (perc * 100.0) as u32);
-        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
-    }
-}
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "st",
@@ -300,6 +274,32 @@ fn entropy(bytes: &[u8]) -> f64 {
     }
 
     out
+}
+
+fn print_quintiles(input: &mut [f64], k: u32) {
+    if input.len() < (k as usize) {
+        eprintln!(
+            "insufficient data for {} quintiles, data has only {} rows",
+            k,
+            input.len()
+        );
+        return;
+    }
+
+    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let mut ks = vec![];
+    let size = input.len() / (k as usize);
+
+    for i in 1..k {
+        ks.push(input[(i as usize) * size] as f32);
+    }
+
+    for i in 0..k - 1 {
+        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
+        let perc_format = format!("{}%", (perc * 100.0) as u32);
+        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
+    }
 }
 
 /// calculates and normalizes the byte histogram
