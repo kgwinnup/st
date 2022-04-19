@@ -135,6 +135,7 @@ dependencies = [
  "serde_json",
  "series",
  "structopt",
+ "xgb",
  "xgboost",
 ]
 

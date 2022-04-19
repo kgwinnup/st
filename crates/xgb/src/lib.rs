@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use xgboost::{parameters, Booster, DMatrix};
 
-pub fn to_xgboost_dataset(xdata: &Vec<Vec<f64>>, ydata: Option<Vec<f32>>) -> DMatrix {
+pub fn to_xgboost_dataset(xdata: &[Vec<f64>], ydata: Option<Vec<f32>>) -> DMatrix {
     let rows = xdata.len();
     let mut xdata2 = vec![];
 
@@ -32,7 +32,7 @@ pub fn dump_model(model: &[u8], dump_model: bool, typ: &str) {
     } else {
         let bst = Booster::load_buffer(model).unwrap();
         let model = bst.dump_model(true, None).unwrap();
-        importance(model, &typ);
+        importance(model, typ);
     }
 }
 
@@ -135,17 +135,16 @@ pub fn importance(model_dump: String, typ: &str) {
     let mut total_cover = 0.0;
     let mut total_freq = 0;
 
-    for line in model_dump.split("\n").into_iter() {
+    for line in model_dump.split('\n') {
         if line.contains("leaf") {
             continue;
         }
 
-        let space_split = line.split(" ").collect::<Vec<&str>>();
-        if space_split.len() != 2 {
+        if line.split(' ').count() != 2 {
             continue;
         }
 
-        let node = parse_node(&line);
+        let node = parse_node(line);
 
         total_freq += 1;
 
@@ -211,7 +210,7 @@ pub fn importance(model_dump: String, typ: &str) {
 
 pub fn predict(model: &str, test_set: &DMatrix) -> Vec<f32> {
     let bst = Booster::load(model).unwrap();
-    bst.predict(&test_set).unwrap()
+    bst.predict(test_set).unwrap()
 }
 
 pub fn train(
@@ -252,14 +251,14 @@ pub fn train(
         .unwrap();
 
     let training_params = parameters::TrainingParametersBuilder::default()
-        .dtrain(&training_set)
+        .dtrain(training_set)
         .booster_params(booster_params)
         .boost_rounds(rounds)
         .build()
         .unwrap();
 
     let bst = Booster::train(&training_params).unwrap();
-    for (k, v) in bst.evaluate(&training_set).unwrap() {
+    for (k, v) in bst.evaluate(training_set).unwrap() {
         eprintln!("{} = {}", k, v);
     }
 

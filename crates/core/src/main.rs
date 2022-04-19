@@ -1,10 +1,8 @@
 use murmur3::murmur3_32;
-use series;
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use xgb;
 
 fn print_quintiles(input: &mut [f64], k: u32) {
     if input.len() < (k as usize) {
@@ -205,7 +203,8 @@ enum Command {
     },
 
     #[structopt(
-        about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
+        about = "evaluation metrics to score an output, confusion matrix and other helpful
+        probablities. Note: all classes need to be 0..N"
     )]
     Eval {
         #[structopt(
@@ -221,7 +220,9 @@ enum Command {
         #[structopt(
             short,
             long,
-            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
+            help = "Use bayes theorem to estimate the effective probability using a estimate of the
+            true rate of occurance for each class. This value expects a string of floats, one for
+            each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
         )]
         bayes: Option<String>,
 
@@ -233,6 +234,91 @@ enum Command {
     Extract(ExtractOptions),
 }
 
+/// get_input will check if the input parameter is_some, and if so read input from a file, else,
+/// read input from stdin. A new String is returned with the contents.
+fn get_input(input: Option<PathBuf>) -> String {
+    if let Some(path) = input {
+        match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let mut input = String::new();
+        let stdin = std::io::stdin();
+
+        for line in stdin.lock().lines() {
+            let buf = line.expect("failed to read line");
+            input.push_str(&buf);
+            input.push('\n');
+        }
+
+        input
+    }
+}
+
+fn get_input_bytes(input: Option<PathBuf>) -> Vec<u8> {
+    if let Some(path) = input {
+        match std::fs::read(path) {
+            Ok(bs) => bs,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let mut stdin = std::io::stdin();
+        let mut buf = vec![];
+        let _ = stdin.read_to_end(&mut buf);
+        buf
+    }
+}
+
+fn entropy(bytes: &[u8]) -> f64 {
+    let mut histo: Vec<f64> = Vec::with_capacity(256);
+
+    for _ in 0..256 {
+        histo.push(0.0)
+    }
+
+    bytes.iter().for_each(|b| {
+        histo[*b as usize] += 1.0;
+    });
+
+    let mut out = 0.0;
+    let len = bytes.len() as f64;
+
+    for n in histo {
+        if n == 0.0 {
+            continue;
+        }
+
+        let freq = (n as f64) / len;
+        out -= freq * freq.log(2.0);
+    }
+
+    out
+}
+
+/// calculates and normalizes the byte histogram
+fn to_byte_histogram(bytes: &[u8]) -> Vec<f64> {
+    let mut histo: Vec<f64> = Vec::with_capacity(256);
+
+    for _ in 0..256 {
+        histo.push(0.0)
+    }
+
+    bytes.iter().for_each(|b| {
+        histo[*b as usize] += 1.0;
+    });
+
+    let sum = bytes.len() as f64;
+
+    histo.iter().map(|x| x / sum).collect()
+}
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -242,7 +328,7 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = series::get_input(input);
+            let raw_inputs = get_input(input);
             let data = series::to_vector(&raw_inputs, with_header);
             let series = series::Series::new(data);
 
@@ -258,7 +344,7 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = series::get_input(input);
+            let raw_inputs = get_input(input);
             let mut data = series::to_vector(&raw_inputs, with_header);
             print_quintiles(&mut data, quintiles);
         }
@@ -269,7 +355,7 @@ fn main() {
             bayes,
             input,
         } => {
-            let raw_inputs = series::get_input(input);
+            let raw_inputs = get_input(input);
             let tuples = series::to_tuple(&raw_inputs);
 
             let bases: Vec<f32> = if let Some(s) = bayes {
@@ -351,13 +437,13 @@ fn main() {
 
             if verbose > 0 {
                 print!("{}", verbose_str);
-                println!("");
+                println!();
             }
 
             if !bases.is_empty() {
                 println!("Bayes estimates with baseline rates\n");
                 print!("{}", bayes_calc_str);
-                println!("");
+                println!();
             }
 
             if verbose > 1 && matrix.len() == 2 {
@@ -386,7 +472,7 @@ fn main() {
             with_header,
             input,
         }) => {
-            let raw_inputs = series::get_input(input);
+            let raw_inputs = get_input(input);
             let (xdata, ydata) = series::to_matrix(&raw_inputs, ycol, with_header);
 
             let training_set = xgb::to_xgboost_dataset(&xdata, Some(ydata));
@@ -408,7 +494,7 @@ fn main() {
             with_header,
             input,
         }) => {
-            let inputs = series::get_input(input);
+            let inputs = get_input(input);
             let (xdata, ydata) = series::to_matrix(&inputs, ycol, with_header);
             let test_set = xgb::to_xgboost_dataset(&xdata, None);
 
@@ -434,13 +520,13 @@ fn main() {
                 };
 
                 if index % 1000 == 0 {
-                    std::io::stdout().write(&buf.as_bytes()).unwrap();
+                    std::io::stdout().write_all(buf.as_bytes()).unwrap();
                     buf = String::new();
                 }
             }
 
             if !buf.is_empty() {
-                std::io::stdout().write(&buf.as_bytes()).unwrap();
+                std::io::stdout().write_all(buf.as_bytes()).unwrap();
             }
         }
 
@@ -473,7 +559,7 @@ fn main() {
             with_header,
             input,
         } => {
-            let input = series::get_input(input);
+            let input = get_input(input);
             let (xdata, _) = series::to_matrix(&input, ycol, with_header);
             let matrix = series::correlation_matrix(&xdata);
 
@@ -483,7 +569,7 @@ fn main() {
             for i in 0..size {
                 print!("{:<8}", i);
             }
-            println!("");
+            println!();
 
             for i in 0..size {
                 print!("{:<8}", i);
@@ -492,13 +578,13 @@ fn main() {
                         print!("{:<8.2}", matrix[i][j]);
                     }
                 }
-                println!("");
+                println!();
             }
         }
 
         Command::Extract(ExtractOptions::ByteHistogram { input }) => {
-            let input = series::get_input_bytes(input);
-            let histo = series::to_byte_histogram(&input);
+            let input = get_input_bytes(input);
+            let histo = to_byte_histogram(&input);
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
@@ -513,8 +599,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::Entropy { input }) => {
-            let input = series::get_input_bytes(input);
-            let en = series::entropy(&input);
+            let input = get_input_bytes(input);
+            let en = entropy(&input);
             println!("{}", en);
         }
 
@@ -524,11 +610,8 @@ fn main() {
             delimiter,
             input,
         }) => {
-            let s = series::get_input(input);
-            let mut buckets_out: Vec<u32> = Vec::with_capacity(kbuckets);
-            for _ in 0..(kbuckets - 1) {
-                buckets_out.push(0);
-            }
+            let s = get_input(input);
+            let mut buckets_out = vec![0; kbuckets - 1];
 
             for item in s.split(&delimiter) {
                 let hash_result = murmur3_32(&mut Cursor::new(item), 0).unwrap();
