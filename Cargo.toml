@@ -18,5 +18,5 @@ xgb = { version = "^0", path = "crates/xgb" }
 members = ["crates/xgb", "crates/series"]
 
 [[bin]]
-path = "crates/core/main.rs"
+path = "src/main.rs"
 name = "st"
