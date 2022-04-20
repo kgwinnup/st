@@ -7,13 +7,16 @@ edition = "2021"
 
 [dependencies]
 structopt = "0.3.26"
-rasciigraph = "0.1.1"
 itertools = "0.8.2"
 rand = "0.8.5"
-xgboost = "0.1.4"
 serde_json = "1.0"
 murmur3 = "0.5.1"
-st_core = { version = "^0", path = "crates/st_core" }
+series = { version = "^0", path = "crates/series" }
+xgb = { version = "^0", path = "crates/xgb" }
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/xgb", "crates/series"]
+
+[[bin]]
+path = "src/main.rs"
+name = "st"

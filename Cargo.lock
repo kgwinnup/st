@@ -434,12 +434,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rasciigraph"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f9690d7e935db7c1475554993ec7162d11a83fae5261be2d9191294a31ac82"
-
-[[package]]
 name = "redox_syscall"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -520,25 +514,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "series"
+version = "0.1.0"
+
+[[package]]
 name = "st"
 version = "0.1.0"
 dependencies = [
  "itertools",
  "murmur3",
  "rand",
- "rasciigraph",
  "serde_json",
- "st_core",
+ "series",
  "structopt",
- "xgboost",
-]
-
-[[package]]
-name = "st_core"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "rand",
+ "xgb",
 ]
 
 [[package]]
@@ -742,6 +731,13 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "xgb"
+version = "0.1.0"
+dependencies = [
+ "xgboost",
+]
 
 [[package]]
 name = "xgboost"
