@@ -1,96 +1,8 @@
-use itertools::Itertools;
 use murmur3::murmur3_32;
-use st_core;
-use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use xgboost::{parameters, Booster, DMatrix};
-
-pub fn print_line(input: &[f64]) {
-    let config = rasciigraph::Config::default()
-        .with_height(20)
-        .with_width(70)
-        .with_offset(0);
-    let plot = rasciigraph::plot(input.to_vec(), config);
-    println!("{}", plot);
-}
-
-pub fn print_histo(input: &mut [f64], prec: u32) {
-    let mut histo: HashMap<u32, u32> = HashMap::new();
-
-    for val in input.iter() {
-        let temp = val * (prec as f64);
-        *histo.entry(temp as u32).or_insert(1) += 1;
-    }
-
-    let mut new_vec = vec![];
-
-    let keys = histo.keys().sorted();
-    for k in keys {
-        if let Some(v) = histo.get(k) {
-            new_vec.push(*v as f64);
-        }
-    }
-
-    let config = rasciigraph::Config::default()
-        .with_height(20)
-        .with_width(70)
-        .with_offset(0);
-    let plot = rasciigraph::plot(new_vec, config);
-    println!("{}", plot);
-}
-
-pub fn print_quintiles(input: &mut [f64], k: u32) {
-    if input.len() < (k as usize) {
-        eprintln!(
-            "insufficient data for {} quintiles, data has only {} rows",
-            k,
-            input.len()
-        );
-        return;
-    }
-
-    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    let mut ks = vec![];
-    let size = input.len() / (k as usize);
-
-    for i in 1..k {
-        ks.push(input[(i as usize) * size] as f32);
-    }
-
-    for i in 0..k - 1 {
-        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
-        let perc_format = format!("{}%", (perc * 100.0) as u32);
-        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
-    }
-}
-
-fn to_xgboost_dataset(xdata: &Vec<Vec<f64>>, ydata: Option<Vec<f32>>) -> DMatrix {
-    let rows = xdata.len();
-    let mut xdata2 = vec![];
-
-    for row in xdata {
-        for item in row {
-            xdata2.push(*item as f32);
-        }
-    }
-
-    match DMatrix::from_dense(&xdata2, rows) {
-        Ok(mut x) => {
-            if let Some(y) = ydata {
-                let _ = x.set_labels(&y);
-            }
-            x
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-}
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -104,44 +16,7 @@ struct Opt {
 }
 
 #[derive(StructOpt, Debug)]
-enum ExtractOptions {
-    #[structopt(about = "create a normalized byte histogram of the input")]
-    ByteHistogram {
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
-    #[structopt(about = "calculate the bits of entropy of the input")]
-    Entropy {
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
-    #[structopt(
-        about = "given a comma separted list of strings, apply the hash-trick with k buckets"
-    )]
-    HashTrick {
-        #[structopt(short, long, help = "number of buckets")]
-        kbuckets: usize,
-
-        #[structopt(short, long, help = "use 1 or 0 only in the buckets")]
-        binary: bool,
-
-        #[structopt(
-            short = "F",
-            long,
-            help = "delimeter used to split the items (default = ',')",
-            default_value = ","
-        )]
-        delimiter: String,
-
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-}
-
-#[derive(StructOpt, Debug)]
-enum TreeOptions {
+enum XgbOptions {
     #[structopt(about = "train a new binary or multiclass model")]
     Train {
         #[structopt(short, long, help = "predictor column")]
@@ -220,6 +95,43 @@ enum TreeOptions {
 }
 
 #[derive(StructOpt, Debug)]
+enum ExtractOptions {
+    #[structopt(about = "create a normalized byte histogram of the input")]
+    ByteHistogram {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(about = "calculate the bits of entropy of the input")]
+    Entropy {
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+
+    #[structopt(
+        about = "given a comma separted list of strings, apply the hash-trick with k buckets"
+    )]
+    HashTrick {
+        #[structopt(short, long, help = "number of buckets")]
+        kbuckets: usize,
+
+        #[structopt(short, long, help = "use 1 or 0 only in the buckets")]
+        binary: bool,
+
+        #[structopt(
+            short = "F",
+            long,
+            help = "delimeter used to split the items (default = ',')",
+            default_value = ","
+        )]
+        delimiter: String,
+
+        #[structopt(parse(from_os_str))]
+        input: Option<PathBuf>,
+    },
+}
+
+#[derive(StructOpt, Debug)]
 enum Command {
     #[structopt(about = "summary statistics from a single vector")]
     Summary {
@@ -249,20 +161,8 @@ enum Command {
         input: Option<PathBuf>,
     },
 
-    #[structopt(about = "very simple cli graphing")]
-    Graph {
-        #[structopt(short)]
-        typ: String,
-
-        #[structopt(short = "h", long = "with-header")]
-        with_header: bool,
-
-        #[structopt(parse(from_os_str))]
-        input: Option<PathBuf>,
-    },
-
     #[structopt(about = "train, predict, and understand xgboost models")]
-    Xgb(TreeOptions),
+    Xgb(XgbOptions),
 
     #[structopt(about = "Computes the Pearson correlation coefficient")]
     CorMatrix {
@@ -277,7 +177,8 @@ enum Command {
     },
 
     #[structopt(
-        about = "evaluation metrics to score an output, confusion matrix and other helpful probablities. Note: all classes need to be 0..N"
+        about = "evaluation metrics to score an output, confusion matrix and other helpful
+        probablities. Note: all classes need to be 0..N"
     )]
     Eval {
         #[structopt(
@@ -293,7 +194,9 @@ enum Command {
         #[structopt(
             short,
             long,
-            help = "Use bayes theorem to estimate the effective probability using a estimate of the true rate of occurance for each class. This value expects a string of floats, one for each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
+            help = "Use bayes theorem to estimate the effective probability using a estimate of the
+            true rate of occurance for each class. This value expects a string of floats, one for
+            each class in the dataset. E.g. -b '0.1, 0.2, 0.3'"
         )]
         bayes: Option<String>,
 
@@ -305,177 +208,115 @@ enum Command {
     Extract(ExtractOptions),
 }
 
-#[derive(Default, Debug)]
-struct XgboostNode {
-    name: String,
-    gain: f32,
-    cover: f32,
+/// get_input will check if the input parameter is_some, and if so read input from a file, else,
+/// read input from stdin. A new String is returned with the contents.
+fn get_input(input: Option<PathBuf>) -> String {
+    if let Some(path) = input {
+        match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let mut input = String::new();
+        let stdin = std::io::stdin();
+
+        for line in stdin.lock().lines() {
+            let buf = line.expect("failed to read line");
+            input.push_str(&buf);
+            input.push('\n');
+        }
+
+        input
+    }
 }
 
-fn parse_node(node_str: &str) -> XgboostNode {
-    let mut name = String::new();
-
-    let mut in_name = false;
-    let mut in_map = false;
-    let mut in_key_name = false;
-    let mut key_name = String::new();
-    let mut val = String::new();
-
-    let mut node = XgboostNode::default();
-
-    for c in node_str.chars() {
-        match c {
-            ' ' => {
-                in_map = true;
-                in_key_name = true;
-                node.name = name.to_string();
-            }
-
-            '[' => {
-                in_name = true;
-            }
-
-            '<' => {
-                in_name = false;
-            }
-
-            '=' => {
-                in_key_name = false;
-            }
-
-            ',' => {
-                in_key_name = true;
-
-                let temp: Result<f32, _> = val.parse();
-                match temp {
-                    Ok(f) => {
-                        if key_name == "gain" {
-                            node.gain = f;
-                        } else if key_name == "cover" {
-                            node.cover = f;
-                        }
-
-                        val = String::new();
-                        key_name = String::new();
-                    }
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-
-            c => {
-                if in_name {
-                    name.push(c);
-                } else if in_map && in_key_name {
-                    key_name.push(c);
-                } else if in_map && !in_key_name {
-                    val.push(c);
-                }
+fn get_input_bytes(input: Option<PathBuf>) -> Vec<u8> {
+    if let Some(path) = input {
+        match std::fs::read(path) {
+            Ok(bs) => bs,
+            Err(_) => {
+                eprintln!("failed to read input file");
+                std::process::exit(1);
             }
         }
+    } else {
+        let mut stdin = std::io::stdin();
+        let mut buf = vec![];
+        let _ = stdin.read_to_end(&mut buf);
+        buf
     }
-
-    let temp: Result<f32, _> = val.parse();
-    match temp {
-        Ok(f) => {
-            if key_name == "gain" {
-                node.gain = f;
-            } else if key_name == "cover" {
-                node.cover = f;
-            }
-        }
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    }
-
-    node
 }
 
-fn importance(model_dump: String, typ: &str) {
-    let mut gain_map = HashMap::new();
-    let mut cover_map = HashMap::new();
-    let mut freq_map = HashMap::new();
+fn entropy(bytes: &[u8]) -> f64 {
+    let mut histo: Vec<f64> = Vec::with_capacity(256);
 
-    let mut total_gain = 0.0;
-    let mut total_cover = 0.0;
-    let mut total_freq = 0;
+    for _ in 0..256 {
+        histo.push(0.0)
+    }
 
-    for line in model_dump.split("\n").into_iter() {
-        if line.contains("leaf") {
+    bytes.iter().for_each(|b| {
+        histo[*b as usize] += 1.0;
+    });
+
+    let mut out = 0.0;
+    let len = bytes.len() as f64;
+
+    for n in histo {
+        if n == 0.0 {
             continue;
         }
 
-        let space_split = line.split(" ").collect::<Vec<&str>>();
-        if space_split.len() != 2 {
-            continue;
-        }
-
-        let node = parse_node(&line);
-
-        total_freq += 1;
-
-        if let Some(val) = freq_map.get_mut(&node.name) {
-            *val += 1;
-        } else {
-            freq_map.insert(node.name.to_string(), 1);
-        }
-
-        if let Some(val) = gain_map.get_mut(&node.name) {
-            *val += node.gain;
-            total_gain += node.gain;
-        } else {
-            gain_map.insert(node.name.to_string(), node.gain);
-            total_gain += node.gain;
-        }
-
-        if let Some(val) = cover_map.get_mut(&node.name) {
-            *val += node.cover;
-            total_cover += node.cover;
-        } else {
-            cover_map.insert(node.name.to_string(), node.cover);
-            total_cover += node.cover;
-        }
+        let freq = (n as f64) / len;
+        out -= freq * freq.log(2.0);
     }
 
-    if typ == "gain" {
-        let mut list = vec![];
-        for (k, v) in gain_map {
-            list.push((k, v / total_gain));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
+    out
+}
 
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
+fn print_quintiles(input: &mut [f64], k: u32) {
+    if input.len() < (k as usize) {
+        eprintln!(
+            "insufficient data for {} quintiles, data has only {} rows",
+            k,
+            input.len()
+        );
+        return;
     }
 
-    if typ == "cover" {
-        let mut list = vec![];
-        for (k, v) in cover_map {
-            list.push((k, v / total_cover));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
+    input.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
+    let mut ks = vec![];
+    let size = input.len() / (k as usize);
+
+    for i in 1..k {
+        ks.push(input[(i as usize) * size] as f32);
     }
 
-    if typ == "freq" {
-        let mut list = vec![];
-        for (k, v) in freq_map {
-            list.push((k, v / total_freq));
-        }
-        list.sort_by(|(_, v1), (_, v2)| v2.partial_cmp(v1).unwrap());
-
-        for (name, val) in list {
-            println!("{} = {}", name, val);
-        }
+    for i in 0..k - 1 {
+        let perc = (((i + 1) * size as u32) as f32) / input.len() as f32;
+        let perc_format = format!("{}%", (perc * 100.0) as u32);
+        println!("{:<8} {:<8}", perc_format, ks[i as usize]);
     }
+}
+
+/// calculates and normalizes the byte histogram
+fn to_byte_histogram(bytes: &[u8]) -> Vec<f64> {
+    let mut histo: Vec<f64> = Vec::with_capacity(256);
+
+    for _ in 0..256 {
+        histo.push(0.0)
+    }
+
+    bytes.iter().for_each(|b| {
+        histo[*b as usize] += 1.0;
+    });
+
+    let sum = bytes.len() as f64;
+
+    histo.iter().map(|x| x / sum).collect()
 }
 
 fn main() {
@@ -487,9 +328,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let data = st_core::to_vector(&raw_inputs, with_header);
-            let series = st_core::Series::new(data);
+            let raw_inputs = get_input(input);
+            let data = series::to_vector(&raw_inputs, with_header);
+            let series = series::Series::new(data);
 
             if transpose {
                 series.summary_t();
@@ -503,28 +344,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let mut data = st_core::to_vector(&raw_inputs, with_header);
+            let raw_inputs = get_input(input);
+            let mut data = series::to_vector(&raw_inputs, with_header);
             print_quintiles(&mut data, quintiles);
-        }
-
-        Command::Graph {
-            typ,
-            with_header,
-            input,
-        } => {
-            let raw_inputs = st_core::get_input(input);
-            let mut data = st_core::to_vector(&raw_inputs, with_header);
-            let name = typ.to_lowercase();
-
-            if name.starts_with("line") {
-                print_line(&data);
-            } else if name.starts_with("histo") {
-                print_histo(&mut data, 1);
-            } else {
-                eprintln!("invalid graph type");
-                std::process::exit(1);
-            }
         }
 
         Command::Eval {
@@ -533,11 +355,11 @@ fn main() {
             bayes,
             input,
         } => {
-            let raw_inputs = st_core::get_input(input);
-            let tuples = st_core::to_tuple(&raw_inputs);
+            let raw_inputs = get_input(input);
+            let tuples = series::to_tuple(&raw_inputs);
 
             let bases: Vec<f32> = if let Some(s) = bayes {
-                match st_core::str_to_vector(&s, ",") {
+                match series::str_to_vector(&s, ",") {
                     Ok(xs) => xs,
                     Err(_) => {
                         eprintln!("error parsing -b list");
@@ -548,8 +370,8 @@ fn main() {
                 vec![]
             };
 
-            let matrix = st_core::confusion_matrix(&tuples, threshold);
-            let stats = st_core::confusion_matrix_stats(&matrix);
+            let matrix = series::confusion_matrix(&tuples, threshold);
+            let stats = series::confusion_matrix_stats(&matrix);
 
             let size = matrix.len();
 
@@ -615,17 +437,17 @@ fn main() {
 
             if verbose > 0 {
                 print!("{}", verbose_str);
-                println!("");
+                println!();
             }
 
             if !bases.is_empty() {
                 println!("Bayes estimates with baseline rates\n");
                 print!("{}", bayes_calc_str);
-                println!("");
+                println!();
             }
 
             if verbose > 1 && matrix.len() == 2 {
-                let output = st_core::threshold_table_stats(&tuples);
+                let output = series::threshold_table_stats(&tuples);
 
                 println!("ROC table\n");
                 println!("{:<8}{:<8}{:<8}{:<8}{:<8}", "t", "prec", "f1", "tpr", "fpr");
@@ -639,7 +461,7 @@ fn main() {
             }
         }
 
-        Command::Xgb(TreeOptions::Train {
+        Command::Xgb(XgbOptions::Train {
             ycol,
             depth,
             eta,
@@ -650,67 +472,33 @@ fn main() {
             with_header,
             input,
         }) => {
-            let raw_inputs = st_core::get_input(input);
-            let (xdata, ydata) = st_core::to_matrix(&raw_inputs, ycol, with_header);
+            let raw_inputs = get_input(input);
+            let (xdata, ydata) = series::to_matrix(&raw_inputs, ycol, with_header);
 
-            let training_set = to_xgboost_dataset(&xdata, Some(ydata));
+            let training_set = xgb::to_xgboost_dataset(&xdata, Some(ydata));
 
-            let objective_fn = match objective.as_str() {
-                "binary:logistic" => parameters::learning::Objective::BinaryLogistic,
-                "multi:softmax" => parameters::learning::Objective::MultiSoftmax(nclasses),
-                "multi:softprob" => parameters::learning::Objective::MultiSoftprob(nclasses),
-                _ => {
-                    eprintln!("invalid objective function");
-                    std::process::exit(1);
-                }
-            };
-
-            let learning_params = parameters::learning::LearningTaskParametersBuilder::default()
-                .objective(objective_fn)
-                .build()
-                .unwrap();
-
-            let tree_params = parameters::tree::TreeBoosterParametersBuilder::default()
-                .max_depth(depth)
-                .eta(eta)
-                .build()
-                .unwrap();
-
-            let booster_params = parameters::BoosterParametersBuilder::default()
-                .booster_type(parameters::BoosterType::Tree(tree_params))
-                .learning_params(learning_params)
-                .verbose(false)
-                .build()
-                .unwrap();
-
-            let training_params = parameters::TrainingParametersBuilder::default()
-                .dtrain(&training_set)
-                .booster_params(booster_params)
-                .boost_rounds(rounds)
-                .build()
-                .unwrap();
-
-            let bst = Booster::train(&training_params).unwrap();
-            for (k, v) in bst.evaluate(&training_set).unwrap() {
-                eprintln!("{} = {}", k, v);
-            }
-
-            let _ = bst.save(output).unwrap();
+            xgb::train(
+                &training_set,
+                &objective,
+                nclasses,
+                depth,
+                eta,
+                rounds,
+                &output,
+            );
         }
 
-        Command::Xgb(TreeOptions::Predict {
+        Command::Xgb(XgbOptions::Predict {
             ycol,
-            model_in: model,
+            model_in,
             with_header,
             input,
         }) => {
-            let inputs = st_core::get_input(input);
-            let (xdata, ydata) = st_core::to_matrix(&inputs, ycol, with_header);
-            let test_set = to_xgboost_dataset(&xdata, None);
+            let inputs = get_input(input);
+            let (xdata, ydata) = series::to_matrix(&inputs, ycol, with_header);
+            let test_set = xgb::to_xgboost_dataset(&xdata, None);
 
-            let bst = Booster::load(model).unwrap();
-            let predicted = bst.predict(&test_set).unwrap();
-
+            let predicted = xgb::predict(&model_in, &test_set);
             let mut buf = String::new();
 
             for (index, row) in xdata.iter().enumerate() {
@@ -732,17 +520,17 @@ fn main() {
                 };
 
                 if index % 1000 == 0 {
-                    std::io::stdout().write(&buf.as_bytes()).unwrap();
+                    std::io::stdout().write_all(buf.as_bytes()).unwrap();
                     buf = String::new();
                 }
             }
 
             if !buf.is_empty() {
-                std::io::stdout().write(&buf.as_bytes()).unwrap();
+                std::io::stdout().write_all(buf.as_bytes()).unwrap();
             }
         }
 
-        Command::Xgb(TreeOptions::Importance {
+        Command::Xgb(XgbOptions::Importance {
             input,
             typ,
             dump_model,
@@ -763,14 +551,7 @@ fn main() {
                 input
             };
 
-            if dump_model {
-                let bst = Booster::load_buffer(&bytes).unwrap();
-                println!("{}", bst.dump_model(true, None).unwrap());
-            } else {
-                let bst = Booster::load_buffer(&bytes).unwrap();
-                let model = bst.dump_model(true, None).unwrap();
-                importance(model, &typ);
-            }
+            xgb::dump_model(&bytes, dump_model, &typ);
         }
 
         Command::CorMatrix {
@@ -778,9 +559,9 @@ fn main() {
             with_header,
             input,
         } => {
-            let input = st_core::get_input(input);
-            let (xdata, _) = st_core::to_matrix(&input, ycol, with_header);
-            let matrix = st_core::correlation_matrix(&xdata);
+            let input = get_input(input);
+            let (xdata, _) = series::to_matrix(&input, ycol, with_header);
+            let matrix = series::correlation_matrix(&xdata);
 
             let size = matrix.len();
 
@@ -788,7 +569,7 @@ fn main() {
             for i in 0..size {
                 print!("{:<8}", i);
             }
-            println!("");
+            println!();
 
             for i in 0..size {
                 print!("{:<8}", i);
@@ -797,13 +578,13 @@ fn main() {
                         print!("{:<8.2}", matrix[i][j]);
                     }
                 }
-                println!("");
+                println!();
             }
         }
 
         Command::Extract(ExtractOptions::ByteHistogram { input }) => {
-            let input = st_core::get_input_bytes(input);
-            let histo = st_core::to_byte_histogram(&input);
+            let input = get_input_bytes(input);
+            let histo = to_byte_histogram(&input);
             let length = histo.len();
             let mut output = String::new();
             for (index, b) in histo.iter().enumerate() {
@@ -818,8 +599,8 @@ fn main() {
         }
 
         Command::Extract(ExtractOptions::Entropy { input }) => {
-            let input = st_core::get_input_bytes(input);
-            let en = st_core::entropy(&input);
+            let input = get_input_bytes(input);
+            let en = entropy(&input);
             println!("{}", en);
         }
 
@@ -829,11 +610,8 @@ fn main() {
             delimiter,
             input,
         }) => {
-            let s = st_core::get_input(input);
-            let mut buckets_out: Vec<u32> = Vec::with_capacity(kbuckets);
-            for _ in 0..(kbuckets - 1) {
-                buckets_out.push(0);
-            }
+            let s = get_input(input);
+            let mut buckets_out = vec![0; kbuckets - 1];
 
             for item in s.split(&delimiter) {
                 let hash_result = murmur3_32(&mut Cursor::new(item), 0).unwrap();
